@@ -1,0 +1,14 @@
+<launch>
+  <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
+  <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
+
+  <!-- deva node -->
+  <node name="hand_object_detection_node"
+        pkg="hand_object_detection_ros" type="hand_detection_node.py"
+        output="screen" >
+    <remap from="~input_image" to="$(arg input_image)" />
+    <rosparam subst_value="true" >
+        device: $(arg device)
+    </rosparam>
+  </node>
+</launch>
