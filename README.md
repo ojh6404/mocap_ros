@@ -2,7 +2,7 @@
 
 ROS1 wrapper package for [hand_object_detector](https://github.com/ddshan/hand_object_detector.git).
 
-https://github.com/ojh6404/tracking_ros/assets/54985442/f8a49814-2645-4b71-887e-1c8f02da5c38
+https://github.com/ojh6404/hand_object_detection_ros/assets/54985442/23b11ded-294f-4f82-b62d-c450de3cd5ae
 
 ## Setup
 
