@@ -9,7 +9,8 @@ https://github.com/ojh6404/hand_object_detection_ros/assets/54985442/23b11ded-29
 ### Prerequisite
 This package is build upon
 - ROS1 (Noetic)
-- docker and nvidia-container-toolkit (for environment safety and cuda build)
+- `torch==1.12` and `cuda-11.3`
+- (Optional) docker and nvidia-container-toolkit (for environment safety)
 
 ### Build package
 
