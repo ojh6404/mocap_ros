@@ -1,6 +1,6 @@
 [tool.flake8]
-exclude = "Cutie"
-ignore = "H,E501,W503,F841"
+exclude = "hand_object_detector"
+ignore = "H,E501,E402,W503,F841"
 
 [tool.isort] # not used for now
 profile = "black"
@@ -9,11 +9,11 @@ line_length = 120
 [tool.black]
 line-length = 120
 target-version = ["py38", "py39"]
-exclude = "Cutie"
+exclude = "hand_object_detector"
 
 [tool.mypy]
 python_version = 3.9
-exclude = "Cutie"
+exclude = "hand_object_detector"
 show_error_codes = true
 warn_unused_ignores = false
 check_untyped_defs = true
@@ -24,23 +24,14 @@ module = [
        "rostest",
        "rospkg",
        "cv_bridge",
-       "dynamic_reconfigure.*",
-       "tracking_ros.cfg",
-       "std_srvs.srv",
        "sensor_msgs.msg",
        "geometry_msgs.msg",
        "jsk_recognition_msgs.msg",
        "jsk_topic_tools",
        "jsk_data",
        "torchvision",
-       "supervision",
-       "deva.*",
-       "cutie.*",
-       "groundingdino.*",
-       "GroundingDINO.*",
-       "segment_anything",
-       "segment_anything_hq",
-       "mobile_sam"
+       "model.*",
+       "matplotlib.*"
 ]
 ignore_missing_imports = true
 

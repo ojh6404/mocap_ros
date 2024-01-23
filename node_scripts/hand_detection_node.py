@@ -13,7 +13,6 @@ import rospy
 import torch
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from jsk_recognition_msgs.msg import Rect, RectArray
@@ -65,6 +64,7 @@ _im_info = torch.FloatTensor(1).to(device)
 _num_boxes = torch.LongTensor(1).to(device)
 _gt_boxes = torch.FloatTensor(1).to(device)
 _box_info = torch.FloatTensor(1)
+
 
 # demo.py
 def _get_image_blob(im):
@@ -155,7 +155,6 @@ def decompose_result(inference_result):
 
 
 def get_detections(im, class_agnostic=False, thresh_hand=HAND_THRESHOLD, thresh_obj=OBJECT_THRESHOLD):
-
     im_blob, im_scales = _get_image_blob(im)
     res = inference_step(im_blob, im_scales)
     scores, boxes, bbox_pred, loss_list = decompose_result(res)
@@ -194,7 +193,7 @@ def get_detections(im, class_agnostic=False, thresh_hand=HAND_THRESHOLD, thresh_
             if class_agnostic:
                 cls_boxes = pred_boxes[inds, :]
             else:
-                cls_boxes = pred_boxes[inds][:, j * 4 : (j + 1) * 4]
+                cls_boxes = pred_boxes[inds][:, j * 4: (j + 1) * 4]
 
             cls_dets = torch.cat(
                 (cls_boxes, cls_scores.unsqueeze(1), contact_indices[inds], offset_vector.squeeze(0)[inds], lr[inds]), 1
@@ -218,7 +217,7 @@ def get_vis(im, obj_dets, hand_dets, thresh_hand=HAND_THRESHOLD, thresh_obj=OBJE
         )
         vis_im = np.array(vis_im.convert("RGB"))
     else:
-        ## direct cv2 conversion is faster, but less pretty
+        # direct cv2 conversion is faster, but less pretty
         vis_im = vis_detections_filtered_objects(vis_im, obj_dets, hand_dets, thresh_hand)
         vis_im = cv2.cvtColor(vis_im, cv2.COLOR_BGR2RGB)
 
