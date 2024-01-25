@@ -1,6 +1,6 @@
 [tool.flake8]
 exclude = "hand_object_detector"
-ignore = "H,E501,E402,W503,F841"
+ignore = "H,E501,E402,W503,F841,E203"
 
 [tool.isort] # not used for now
 profile = "black"

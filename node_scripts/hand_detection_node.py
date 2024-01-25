@@ -261,7 +261,7 @@ class HandObjectDetectionNode(object):
             vis_im = vis_detections_filtered_objects_PIL(
                 vis_im, obj_dets, hand_dets, hand_threshold, object_threshold, font_path=FONT_PATH
             )
-            vis_im = np.array(vis_im.convert("RGB"))
+            vis_im = np.array(vis_im.convert("RGB"))  # type: ignore
         else:
             # direct cv2 conversion is faster, but less pretty
             vis_im = vis_detections_filtered_objects(vis_im, obj_dets, hand_dets, hand_threshold)
