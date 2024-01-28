@@ -97,13 +97,12 @@ RUN cd ~/catkin_ws/src/ &&\
 
 
 # to avoid conflcit when mounting
-RUN rm -rf ~/hand_object_detection_ws/src/tracking_ros/launch
+RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
 
 #########################################
 ############ ENV VARIABLE STUFF #########
 #########################################
 RUN touch ~/.bashrc
-RUN echo 'export PATH="$PATH:$HOME/.local/bin"' >> ~/.bashrc
 RUN echo "source ~/catkin_ws/devel/setup.bash" >> ~/.bashrc
 
 CMD ["bash"]
