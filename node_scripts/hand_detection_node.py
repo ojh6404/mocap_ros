@@ -66,6 +66,7 @@ class HandObjectDetectionNode(object):
             im, obj_dets, hand_dets, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
         )
         vis_msg = self.bridge.cv2_to_imgmsg(vis_im, encoding="rgb8")
+        vis_msg.header = msg.header
         self.pub_debug_image.publish(vis_msg)
 
     def get_rect(self, detection):
