@@ -1,3 +1,6 @@
 [submodule "hand_object_detector"]
 	path = hand_object_detector
 	url = https://github.com/ojh6404/hand_object_detector.git
+[submodule "frankmocap"]
+	path = frankmocap
+	url = https://github.com/ojh6404/frankmocap.git
