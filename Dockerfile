@@ -37,6 +37,7 @@ RUN apt-get update && apt-get install -q -y --no-install-recommends \
     freeglut3-dev \
     libosmesa6-dev \
     ffmpeg \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # setup sources.list
