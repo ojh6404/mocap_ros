@@ -29,6 +29,14 @@ RUN apt-get update && apt-get install -q -y --no-install-recommends \
     dirmngr \
     gnupg2 \
     curl \
+    wget \
+    libglu1-mesa \
+    libxi-dev \
+    libxmu-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libosmesa6-dev \
+    ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # setup sources.list
@@ -69,7 +77,6 @@ RUN apt update && apt install ros-noetic-jsk-tools ros-noetic-jsk-recognition-ut
 WORKDIR /home/user
 
 USER user
-CMD /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 
@@ -94,7 +101,6 @@ RUN cd ~/catkin_ws/src/ &&\
     rosdep install --from-paths . --ignore-src -y -r &&\
     cd ~/catkin_ws/src/hand_object_detection_ros &&\
     cd ~/catkin_ws && catkin init && catkin build
-
 
 # to avoid conflcit when mounting
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
