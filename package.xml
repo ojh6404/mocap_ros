@@ -9,7 +9,9 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <buildtool_depend>python3-catkin-pkg-modules</buildtool_depend>.
+  <build_depend>message_generation</build_depend>
 
+  <exec_depend>message_runtime</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>jsk_recognition_msgs</exec_depend>
