@@ -7,24 +7,33 @@ import rospy
 import torch
 import numpy as np
 import cv2
+from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
+from sensor_msgs.msg import Image, CameraInfo
 from jsk_recognition_msgs.msg import Rect, RectArray
+from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
-MODEL_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/hand_object_detector"
-FONT_PATH = MODEL_PATH + "/lib/model/utils/times_b.ttf"
-CHECKPOINT_FILE = MODEL_PATH + "/models/res101_handobj_100K/pascal_voc/faster_rcnn_1_8_132028.pth"
-
-sys.path.insert(0, MODEL_PATH)
+HAND_OBJECT_MODEL_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/hand_object_detector"
+FONT_PATH = HAND_OBJECT_MODEL_PATH + "/lib/model/utils/times_b.ttf"
+CHECKPOINT_FILE = HAND_OBJECT_MODEL_PATH + "/models/res101_handobj_100K/pascal_voc/faster_rcnn_1_8_132028.pth"
+sys.path.insert(0, HAND_OBJECT_MODEL_PATH)
 
 from model.utils.config import cfg
 from model.utils.blob import im_list_to_blob
 from model.rpn.bbox_transform import clip_boxes
 from model.rpn.bbox_transform import bbox_transform_inv
 from model.roi_layers import nms
-from model.utils.net_utils import vis_detections_filtered_objects
-from model.utils.net_utils import vis_detections_filtered_objects_PIL
+from model.utils.net_utils import vis_detections_filtered_objects, vis_detections_filtered_objects_PIL, filter_object
 from model.faster_rcnn.resnet import resnet
+
+FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
+FRANKMOCAP_CHECKPOINT = FRANKMOCAP_PATH + "/extra_data/hand_module/pretrained_weights/pose_shape_best.pth"
+SMPL_DIR = FRANKMOCAP_PATH + "/extra_data/smpl/"
+sys.path.insert(0, FRANKMOCAP_PATH)
+
+import mocap_utils.demo_utils as demo_utils
+from handmocap.hand_mocap_api import HandMocap
+from renderer.visualizer import Visualizer
 
 np.random.seed(cfg.RNG_SEED)
 PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])
@@ -35,12 +44,37 @@ class HandObjectDetectionNode(object):
         self.device = rospy.get_param("~device", "cuda:0")
         self.hand_threshold = rospy.get_param("~hand_threshold", 0.9)
         self.object_threshold = rospy.get_param("~object_threshold", 0.9)
+        self.with_handmocap = rospy.get_param("~with_handmocap", True)
         self.init_model()
+        self.bridge = CvBridge()
+        if self.with_handmocap:
+            self.sub_cam_info = rospy.wait_for_message("/camera/rgb/camera_info", CameraInfo)
+            self.camera_matrix = np.array(self.sub_cam_info.K).reshape(3, 3)
+            self.pub_mocap_image = rospy.Publisher("~hand_mocap", Image, queue_size=1)
+            self.pub_test_image = rospy.Publisher("~test", Image, queue_size=1)
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
         self.pub_debug_image = rospy.Publisher("~debug_image", Image, queue_size=1)
         self.pub_object_boxes = rospy.Publisher("~objects", RectArray, queue_size=1)
-        self.pub_hand_boxes = rospy.Publisher("~hands", RectArray, queue_size=1)
-        self.bridge = CvBridge()
+        self.pub_hand_detections = rospy.Publisher("~hand_detections", HandDetectionArray, queue_size=1)
+
+    def rodrigues(self, rotvec):
+        theta = np.linalg.norm(rotvec)
+        r = (rotvec / theta).reshape(3, 1) if theta > 1e-8 else rotvec
+        cost = np.cos(theta)
+        mat = np.asarray([[0, -r[2], r[1]], [r[2], 0, -r[0]], [-r[1], r[0], 0]])
+        return cost * np.eye(3) + (1 - cost) * r @ r.T + np.sin(theta) * mat
+
+    def draw_axes(self, img, R, t, K, color=(0, 255, 0), length=0.1):
+        # draw 3D axis on image
+        points = np.array([[0, 0, 0], [length, 0, 0], [0, length, 0], [0, 0, length]], dtype=np.float32)
+        points = points @ R.T + t
+        points = points[:, :2] / points[:, 2, None]
+        points = points @ K.T
+        points = points.astype(np.int32)
+        cv2.line(img, tuple(points[0]), tuple(points[1]), (0, 0, 255), 2)
+        cv2.line(img, tuple(points[0]), tuple(points[2]), (0, 255, 0), 2)
+        cv2.line(img, tuple(points[0]), tuple(points[3]), (255, 0, 0), 2)
+        return img
 
     def callback_image(self, msg):
         im = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
@@ -48,10 +82,8 @@ class HandObjectDetectionNode(object):
             im, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
         )
         obj_msg = RectArray(header=msg.header)
-        hand_msg = RectArray(header=msg.header)
         stationary_hand_list = []
         if hand_dets is not None:
-            hand_msg.rects = [self.get_rect(x) for x in hand_dets]
             stationary_hand_list = [self.get_rect(x) for x in hand_dets if self.get_state(x) == 4]
         if stationary_hand_list:
             # use hand boxes for all stationary objects, in order to
@@ -60,14 +92,69 @@ class HandObjectDetectionNode(object):
         elif obj_dets is not None:
             obj_msg.rects = [self.get_rect(x) for x in obj_dets]
 
+        detection_results = self.parse_result(obj_dets, hand_dets)
+        detection_results.header = msg.header
+
+        if self.with_handmocap:
+            hand_bbox_list = []
+            hand_bbox_dict = {'left_hand': None, 'right_hand': None}
+            if detection_results.detections:
+                for detection in detection_results.detections:
+                    hand = 'left_hand' if detection.hand == "left" else 'right_hand'
+                    hand_bbox_dict[hand] = np.array([detection.hand_rect.x, detection.hand_rect.y, detection.hand_rect.width, detection.hand_rect.height], dtype=np.float32)
+                hand_bbox_list.append(hand_bbox_dict)
+            if len(hand_bbox_list) < 1:
+                pass
+            else:
+                # Hand Pose Regression
+                pred_output_list = self.hand_mocap.regress(
+                        im, hand_bbox_list, add_margin=True)
+
+                hand_orientation = pred_output_list[0]["right_hand"]["pred_hand_pose"][0,:3]
+                rotation_matrix = self.rodrigues(hand_orientation)
+
+                cv_image_with_axes = self.draw_axes(im, rotation_matrix, np.array([0, 0, 0]), self.camera_matrix)
+
+                pred_mesh_list = demo_utils.extract_mesh_from_output(pred_output_list)
+
+                # visualize
+                res_img = self.hand_mocap_visualizer.visualize(
+                    im,
+                    pred_mesh_list = pred_mesh_list,
+                    hand_bbox_list = hand_bbox_list)
+                mocap_im_msg = self.bridge.cv2_to_imgmsg(res_img, encoding="bgr8")
+                mocap_im_msg.header = msg.header
+                self.pub_mocap_image.publish(mocap_im_msg)
+                test_im_msg = self.bridge.cv2_to_imgmsg(cv_image_with_axes, encoding="bgr8")
+                test_im_msg.header = msg.header
+                self.pub_test_image.publish(test_im_msg)
+
         self.pub_object_boxes.publish(obj_msg)
-        self.pub_hand_boxes.publish(hand_msg)
+        self.pub_hand_detections.publish(detection_results)
         vis_im = self.get_vis(
             im, obj_dets, hand_dets, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
         )
         vis_msg = self.bridge.cv2_to_imgmsg(vis_im, encoding="rgb8")
         vis_msg.header = msg.header
         self.pub_debug_image.publish(vis_msg)
+
+    def parse_result(self, obj_dets, hand_dets):
+        hand_detections = HandDetectionArray()
+        if hand_dets is not None and obj_dets is not None:
+            img_obj_id = filter_object(obj_dets, hand_dets)
+        if hand_dets is None:
+            return hand_detections
+        for i, hand_det in enumerate(hand_dets):
+            hand_detection = HandDetection()
+            hand_detection.hand = "left" if hand_det[-1] < 0.5 else "right"
+            hand_detection.hand_rect = self.get_rect(hand_det)
+            hand_detection.score = hand_det[4]
+            hand_detection.state = "N" if hand_det[5] == 0 else "S" if hand_det[5] == 1 else "O" if hand_det[5] == 2 else "P" if hand_det[5] == 3 else "F"
+            if hand_detection.state != "N" and obj_dets is not None:
+                hand_detection.object_rect = self.get_rect(obj_dets[img_obj_id[i]])
+            hand_detections.detections.append(hand_detection)
+        return hand_detections
+
 
     def get_rect(self, detection):
         # [boxes(4), score(1), state(1), offset_vector(3), left/right(1)]
@@ -109,6 +196,11 @@ class HandObjectDetectionNode(object):
         self._num_boxes = torch.LongTensor(1).to(self.device)
         self._gt_boxes = torch.FloatTensor(1).to(self.device)
         self._box_info = torch.FloatTensor(1)
+
+        # frankmocap
+        if self.with_handmocap:
+            self.hand_mocap = HandMocap(FRANKMOCAP_CHECKPOINT, SMPL_DIR, device=self.device)
+            self.hand_mocap_visualizer = Visualizer("opengl")
 
     def inference_step(self, im_blob, im_scales):
         im_data_pt = torch.as_tensor(im_blob, device=self.device).permute(0, 3, 1, 2)

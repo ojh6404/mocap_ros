@@ -3,6 +3,8 @@
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
+  <arg name="with_handmocap" default="true" />
+
 
   <!-- hand_object_detection node -->
   <node name="hand_object_detection_node"
@@ -13,6 +15,7 @@
         device: $(arg device)
         hand_threshold: $(arg hand_threshold)
         object_threshold: $(arg object_threshold)
+        with_handmocap: $(arg with_handmocap)
     </rosparam>
   </node>
 </launch>
