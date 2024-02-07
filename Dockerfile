@@ -95,7 +95,7 @@ ENV PATH="$PATH:/home/user/.local/bin"
 # Installing catkin package
 RUN mkdir -p ~/catkin_ws/src
 RUN sudo rosdep init && rosdep update && sudo apt update
-RUN cd ~/catkin_ws/src && git clone https://github.com/ojh6404/hand_object_detection_ros.git --branch devel-frankmocap
+RUN cd ~/catkin_ws/src && git clone https://github.com/ojh6404/hand_object_detection_ros.git
 RUN cd ~/catkin_ws/src/hand_object_detection_ros && ./prepare.sh
 RUN cd ~/catkin_ws/src/ &&\
     source /opt/ros/noetic/setup.bash &&\
