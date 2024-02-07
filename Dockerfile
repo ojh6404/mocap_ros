@@ -29,6 +29,15 @@ RUN apt-get update && apt-get install -q -y --no-install-recommends \
     dirmngr \
     gnupg2 \
     curl \
+    wget \
+    libglu1-mesa \
+    libxi-dev \
+    libxmu-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libosmesa6-dev \
+    ffmpeg \
+    xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 # setup sources.list
@@ -69,7 +78,6 @@ RUN apt update && apt install ros-noetic-jsk-tools ros-noetic-jsk-recognition-ut
 WORKDIR /home/user
 
 USER user
-CMD /bin/bash
 SHELL ["/bin/bash", "-c"]
 
 
@@ -87,7 +95,7 @@ ENV PATH="$PATH:/home/user/.local/bin"
 # Installing catkin package
 RUN mkdir -p ~/catkin_ws/src
 RUN sudo rosdep init && rosdep update && sudo apt update
-COPY --chown=user . /home/user/catkin_ws/src/hand_object_detection_ros
+RUN cd ~/catkin_ws/src && git clone https://github.com/ojh6404/hand_object_detection_ros.git --branch devel-frankmocap
 RUN cd ~/catkin_ws/src/hand_object_detection_ros && ./prepare.sh
 RUN cd ~/catkin_ws/src/ &&\
     source /opt/ros/noetic/setup.bash &&\
@@ -95,6 +103,7 @@ RUN cd ~/catkin_ws/src/ &&\
     cd ~/catkin_ws/src/hand_object_detection_ros &&\
     cd ~/catkin_ws && catkin init && catkin build
 
+COPY --chown=user node_scripts /home/user/catkin_ws/src/hand_object_detection_ros/node_scripts
 
 # to avoid conflcit when mounting
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
