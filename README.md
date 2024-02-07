@@ -1,8 +1,8 @@
 # hand_object_detection_ros 
 
-ROS1 wrapper package for [hand_object_detector](https://github.com/ddshan/hand_object_detector.git).
+ROS1 wrapper package for hand detection and mocap with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git) and [frankmocap](https://github.com/facebookresearch/frankmocap.git).
 
-https://github.com/ojh6404/hand_object_detection_ros/assets/54985442/23b11ded-294f-4f82-b62d-c450de3cd5ae
+![Alt text](asset/hand_object_detection_example.gif)
 
 ## Setup
 
