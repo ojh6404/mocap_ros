@@ -3,6 +3,7 @@ project(hand_object_detection_ros)
 
 find_package(catkin REQUIRED COMPONENTS
   sensor_msgs
+  geometry_msgs
   jsk_recognition_msgs
   jsk_topic_tools
   message_generation
