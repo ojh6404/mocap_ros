@@ -28,7 +28,7 @@ cd ~/ros/catkin_ws && catkin b
 Otherwise, you can build this package on docker environment.
 ```bash
 git clone https://github.com/ojh6404/hand_object_detection_ros.git
-cd hand_object_detection_ros
+cd hand_object_detection_ros && catkin bt # to build message
 docker build -t hand_object_detection_ros .
 ```
 
@@ -37,19 +37,32 @@ docker build -t hand_object_detection_ros .
 ```bash
 roslaunch hand_object_detection_ros sample.launch \
     input_image:=/kinect_head/rgb/image_rect_color \
-    device:=cuda:0
+    device:=cuda:0 \
+    with_handmocap:=true
 ```
 ### 2. using docker
 You can run on docker by
 ```bash
 ./run_docker -host pr1040 -mount ./launch -name sample.launch \
     input_image:=/kinect_head/rgb/image_rect_color \
-    device:=cuda:0
+    device:=cuda:0 \
+    with_handmocap:=true
 ```
 where
 - `-host` : hostname like `pr1040` or `localhost`
 - `-mount` : mount launch file directory for launch inside docker.
 - `-name` : launch file name to run
+
+launch args below.
+- `input_image` : input image topic
+- `device` : which device to use. `cpu` or `cuda`. default is `cuda:0`.
+- `hand_threshold` : hand detection threshold. default is `0.9`.
+- `object_threshold` : object detection threshold. default is `0.9`.
+- `with_handmocap` : use frankmocap or not. if you need faster detection and don't need mocap, then set `false`. default is `true`.
+
+### Output topic
+- `~hand_detections` : `HandDetectionArray`. array of hand detection results. please refer to `msg`
+- `~debug_image` : `Image`. image for visualization.
 
 ### TODO
 add rostest and docker build test.
