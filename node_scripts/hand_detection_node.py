@@ -38,6 +38,9 @@ from renderer.visualizer import Visualizer
 np.random.seed(cfg.RNG_SEED)
 PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])
 
+# for calculating hand origin
+PALM_JOINTS = [0, 2, 5, 9, 13, 17]
+WEIGHTS = np.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
 
 def angle_axis_to_quaternion(angle_axis):
     # Calculate the rotation angle (magnitude of the angle-axis vector)
@@ -114,13 +117,9 @@ class HandObjectDetectionNode(object):
 
                 for hand in pred_output_list[0]:  # TODO: handle multiple hands
                     if pred_output_list[0][hand] is not None:
-                        hand_origin = np.array(
-                            [
-                                hand_bbox_list[0][hand][0] + hand_bbox_list[0][hand][2] / 2,  # type: ignore
-                                hand_bbox_list[0][hand][1] + hand_bbox_list[0][hand][3] / 2,  # type: ignore
-                                0,
-                            ]
-                        )
+
+                        joint_coords = pred_output_list[0][hand]["pred_joints_img"]
+                        hand_origin = np.sum(joint_coords[PALM_JOINTS] * WEIGHTS[:, None], axis=0)
                         hand_orientation = pred_output_list[0][hand]["pred_hand_pose"][0, :3].astype(
                             np.float32
                         )  # angle-axis representation
@@ -129,6 +128,7 @@ class HandObjectDetectionNode(object):
                         hand_pose = Pose()
                         hand_pose.position.x = hand_origin[0]
                         hand_pose.position.y = hand_origin[1]
+                        hand_pose.position.z = 0 # cause it's working in 2D
                         hand_pose.orientation.x = quat[1]
                         hand_pose.orientation.y = quat[2]
                         hand_pose.orientation.z = quat[3]

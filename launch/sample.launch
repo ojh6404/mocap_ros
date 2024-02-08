@@ -1,21 +1,57 @@
 <launch>
   <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
+  <arg name="input_depth" default="/kinect_head/depth_registered/image_raw"/>
+  <arg name="input_detections" default="/hand_object_detection_node/hand_detections"/>
+  <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
+  <arg name="decompress" default="true" />
+  <arg name="base_frame" default="base_footprint" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
   <arg name="with_handmocap" default="true" />
+  <arg name="track_3d" default="false" />
+  <arg name="slop" default="0.1" />
 
+  <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
+  <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
+
+  <!-- Image Decompress -->
+  <node name="image_decompresser"
+        pkg="image_transport" type="republish"
+        args="compressed raw" respawn="true" if="$(arg decompress)">
+    <remap from="in" to="$(arg input_image)"/>
+    <remap from="out" to="$(arg _input_image)"/>
+  </node>
+
+  <!-- <node name="depth_decompresser" -->
+  <!--      pkg="image_transport" type="republish" -->
+  <!--      args="compressedDepth raw" respawn="true"> -->
+  <!--   <remap from="in" to="$(arg input_depth)"/> -->
+  <!--   <remap from="out" to="decompressed_depth"/> -->
+  <!-- </node> -->
 
   <!-- hand_object_detection node -->
   <node name="hand_object_detection_node"
         pkg="hand_object_detection_ros" type="hand_detection_node.py"
         output="screen" >
-    <remap from="~input_image" to="$(arg input_image)" />
+    <remap from="~input_image" to="$(arg _input_image)" />
     <rosparam subst_value="true" >
         device: $(arg device)
         hand_threshold: $(arg hand_threshold)
         object_threshold: $(arg object_threshold)
         with_handmocap: $(arg with_handmocap)
+    </rosparam>
+  </node>
+  <!-- hand 3d track node node -->
+  <node name="hand_3d_node"
+        pkg="hand_object_detection_ros" type="hand_3d_node.py"
+        output="screen" if="$(arg track_3d)">
+    <remap from="~input_depth" to="$(arg input_depth)" />
+    <remap from="~camera_info" to="$(arg camera_info)" />
+    <remap from="~input_detections" to="$(arg input_detections)" />
+    <rosparam subst_value="true" >
+        base_frame: $(arg base_frame)
+        slop: $(arg slop)
     </rosparam>
   </node>
 </launch>
