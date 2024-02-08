@@ -74,6 +74,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN apt update && apt install python3-osrf-pycommon python3-catkin-tools python3-wstool -y
 RUN apt update && apt install ros-noetic-jsk-tools ros-noetic-jsk-recognition-utils ros-noetic-jsk-recognition-msgs -y
+RUN apt update && apt install ros-noetic-image-transport \
+    ros-noetic-image-transport-plugins \
+    ros-noetic-compressed-image-transport \
+    ros-noetic-compressed-depth-image-transport -y
 
 WORKDIR /home/user
 
