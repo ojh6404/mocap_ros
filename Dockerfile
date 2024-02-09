@@ -109,6 +109,9 @@ RUN cd ~/catkin_ws/src/ &&\
 
 COPY --chown=user node_scripts /home/user/catkin_ws/src/hand_object_detection_ros/node_scripts
 
+# cache
+RUN wget https://download.pytorch.org/models/resnet50-19c8e357.pth -P /home/user/.cache/torch/hub/checkpoints/
+
 # to avoid conflcit when mounting
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
 

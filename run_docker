@@ -8,7 +8,6 @@ from tempfile import TemporaryDirectory
 from typing import Optional
 
 _ROS_ROOT_INSIDE_CONTAINER = "/home/user/catkin_ws/src/hand_object_detection_ros"
-_TORCH_CACHE_DIR = Path.home() / ".cache" / "torch"
 
 def add_prefix(file_path: Path, prefix: str) -> Path:
     parent = file_path.parent
@@ -53,7 +52,6 @@ if __name__ == "__main__":
         docker_run_command = """
             docker run \
                 -v {tmp_launch_path}:{ros_root}/launch \
-                -v {torch_cache_dir}:/home/user/.cache/torch \
                 --rm --net=host -it \
                 --gpus 1 hand_object_detection_ros:latest \
                 /bin/bash -i -c \
@@ -63,7 +61,6 @@ if __name__ == "__main__":
                 xvfb-run -a roslaunch hand_object_detection_ros {launch_file_name} {launch_args}"
                 """.format(
             tmp_launch_path=tmp_launch_path,
-            torch_cache_dir=_TORCH_CACHE_DIR,
             ros_root=_ROS_ROOT_INSIDE_CONTAINER,
             host=args.host,
             launch_file_name=launch_file_name,
