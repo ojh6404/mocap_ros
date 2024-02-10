@@ -13,9 +13,10 @@ from geometry_msgs.msg import Pose
 from jsk_recognition_msgs.msg import Rect
 from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
-HAND_OBJECT_MODEL_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/hand_object_detector"
+FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
+HAND_OBJECT_MODEL_PATH = FRANKMOCAP_PATH + "/detectors/hand_object_detector"
 FONT_PATH = HAND_OBJECT_MODEL_PATH + "/lib/model/utils/times_b.ttf"
-CHECKPOINT_FILE = HAND_OBJECT_MODEL_PATH + "/models/res101_handobj_100K/pascal_voc/faster_rcnn_1_8_132028.pth"
+CHECKPOINT_FILE = FRANKMOCAP_PATH + "/extra_data/hand_module/hand_detector/faster_rcnn_1_8_132028.pth"
 sys.path.insert(0, HAND_OBJECT_MODEL_PATH)
 
 from model.utils.config import cfg
@@ -26,7 +27,6 @@ from model.roi_layers import nms
 from model.utils.net_utils import vis_detections_filtered_objects, vis_detections_filtered_objects_PIL, filter_object
 from model.faster_rcnn.resnet import resnet
 
-FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
 FRANKMOCAP_CHECKPOINT = FRANKMOCAP_PATH + "/extra_data/hand_module/pretrained_weights/pose_shape_best.pth"
 SMPL_DIR = FRANKMOCAP_PATH + "/extra_data/smpl/"
 sys.path.insert(0, FRANKMOCAP_PATH)
