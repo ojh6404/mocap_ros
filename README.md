@@ -43,15 +43,14 @@ roslaunch hand_object_detection_ros sample.launch \
 ### 2. using docker
 You can run on docker by
 ```bash
-./run_docker -host pr1040 -mount ./launch -name sample.launch \
+./run_docker -host pr1040 -launch sample.launch \
     input_image:=/kinect_head/rgb/image_rect_color \
     device:=cuda:0 \
     with_handmocap:=true
 ```
 where
 - `-host` : hostname like `pr1040` or `localhost`
-- `-mount` : mount launch file directory for launch inside docker.
-- `-name` : launch file name to run
+- `-launch` : launch file name to run
 
 launch args below.
 - `input_image` : input image topic
