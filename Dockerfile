@@ -8,10 +8,25 @@ RUN echo 'Etc/UTC' > /etc/timezone && \
     apt-get install -q -y --no-install-recommends tzdata && \
     rm -rf /var/lib/apt/lists/*
 
-RUN apt update
-
-# install minimum tools:
-RUN apt install -y build-essential sudo git
+# install essential packages
+RUN apt update && apt install -q -y --no-install-recommends \
+    dirmngr \
+    gnupg2 \
+    curl \
+    wget \
+    build-essential \
+    sudo \
+    git \
+    lsb-release \
+    libglu1-mesa \
+    libxi-dev \
+    libxmu-dev \
+    libglu1-mesa-dev \
+    freeglut3-dev \
+    libosmesa6-dev \
+    ffmpeg \
+    xvfb \
+    && rm -rf /var/lib/apt/lists/*
 
 RUN \
   useradd user && \
@@ -24,24 +39,7 @@ RUN \
 RUN echo 'root:root' | chpasswd
 RUN echo 'user:user' | chpasswd
 
-# install packages
-RUN apt-get update && apt-get install -q -y --no-install-recommends \
-    dirmngr \
-    gnupg2 \
-    curl \
-    wget \
-    libglu1-mesa \
-    libxi-dev \
-    libxmu-dev \
-    libglu1-mesa-dev \
-    freeglut3-dev \
-    libosmesa6-dev \
-    ffmpeg \
-    xvfb \
-    && rm -rf /var/lib/apt/lists/*
-
 # setup sources.list
-RUN sudo apt-get update && apt-get install -y lsb-release
 RUN sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
 
 # setup keys
@@ -52,35 +50,38 @@ ENV LANG C.UTF-8
 ENV LC_ALL C.UTF-8
 ENV ROS_DISTRO noetic
 
-# install ros packages
+# install ros core
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-noetic-ros-core=1.5.0-1* \
+    ros-noetic-ros-base=1.5.0-1* \
     && rm -rf /var/lib/apt/lists/*
 
 # install bootstrap tools
 RUN apt-get update && apt-get install --no-install-recommends -y \
-    build-essential \
     python3-rosdep \
     python3-rosinstall \
+    python3-osrf-pycommon \
+    python3-catkin-tools \
+    python3-wstool \
     python3-vcstools \
     python-is-python3 \
     python3-pip \
     && rm -rf /var/lib/apt/lists/*
 
 # install ros packages
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ros-noetic-ros-base=1.5.0-1* \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN apt update && apt install python3-osrf-pycommon python3-catkin-tools python3-wstool -y
-RUN apt update && apt install ros-noetic-jsk-tools ros-noetic-jsk-recognition-utils ros-noetic-jsk-recognition-msgs -y
-RUN apt update && apt install ros-noetic-image-transport \
+RUN apt update && apt install -y --no-install-recommends \
+    ros-noetic-image-transport \
     ros-noetic-image-transport-plugins \
     ros-noetic-compressed-image-transport \
-    ros-noetic-compressed-depth-image-transport -y
+    ros-noetic-compressed-depth-image-transport \
+    ros-noetic-jsk-tools \
+    ros-noetic-jsk-common \
+    ros-noetic-jsk-topic-tools \
+    ros-noetic-jsk-recognition-utils \
+    ros-noetic-jsk-recognition-msgs \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /home/user
-
 USER user
 SHELL ["/bin/bash", "-c"]
 
