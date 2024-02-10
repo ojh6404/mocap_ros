@@ -105,15 +105,12 @@ RUN cd ~/catkin_ws/src/ &&\
     source /opt/ros/noetic/setup.bash &&\
     rosdep install --from-paths . --ignore-src -y -r &&\
     cd ~/catkin_ws/src/hand_object_detection_ros &&\
-    cd ~/catkin_ws && catkin init && catkin build
-
-COPY --chown=user node_scripts /home/user/catkin_ws/src/hand_object_detection_ros/node_scripts
-
-# cache
-RUN wget https://download.pytorch.org/models/resnet50-19c8e357.pth -P /home/user/.cache/torch/hub/checkpoints/
+    cd ~/catkin_ws && catkin init && catkin build &&\
+    rm -rf /home/user/.cache/pip
 
 # to avoid conflcit when mounting
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
+RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/node_scripts
 
 #########################################
 ############ ENV VARIABLE STUFF #########
