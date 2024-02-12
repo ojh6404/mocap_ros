@@ -8,14 +8,13 @@ import tf2_ros
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseArray
 from image_geometry import PinholeCameraModel
-from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
+from hand_object_detection_ros.msg import HandDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
 class Hand3DNode(object):
     def __init__(self):
         self.bridge = CvBridge()
-        self.base_frame = rospy.get_param('~base_frame', 'base_footprint') # Target frame
         self.tf_listener = tf.TransformListener()
         self.tf_broadcaster = tf.TransformBroadcaster()
 
@@ -27,7 +26,7 @@ class Hand3DNode(object):
         self.ts.registerCallback(self.callback)
 
         # Publisher for Pose
-        self.pose_array_pub = rospy.Publisher("~/hand_pose", PoseArray, queue_size=10)
+        self.pose_array_pub = rospy.Publisher("~hand_pose", PoseArray, queue_size=10)
 
 
     def callback(self, cam_info_data, depth_data, hand_data):
@@ -44,36 +43,31 @@ class Hand3DNode(object):
 
         for detection in hand_data.detections:
             # Get the depth value at the 2D point
-            point_2d = [detection.pose.position.x, detection.pose.position.y]
+            point_2d = (detection.pose.position.x, detection.pose.position.y)
+            # clip the point to the image size
+            point_2d = (min(max(detection.pose.position.x, 0), cv_image.shape[1] - 1), min(max(detection.pose.position.y, 0), cv_image.shape[0] - 1))
             depth = cv_image[int(point_2d[1]), int(point_2d[0])]
+            if np.isnan(depth):
+                continue
 
             # Calculate 3D coordinates in the camera frame
             x_cam = (point_2d[0] - camera_model.cx()) * depth / camera_model.fx()
             y_cam = (point_2d[1] - camera_model.cy()) * depth / camera_model.fy()
             z_cam = depth
 
-            # Transform the point to the base_footprint frame
             try:
-                (trans, rot) = self.tf_listener.lookupTransform(self.base_frame, camera_frame, rospy.Time(0))
-                transformed_point = tf.transformations.quaternion_matrix(rot)
-                transformed_point[0][3] = trans[0]
-                transformed_point[1][3] = trans[1]
-                transformed_point[2][3] = trans[2]
-
-                point_base = np.dot(transformed_point, np.array([x_cam, y_cam, z_cam, 1]))
-
                 # Create PoseArray message and publish it
                 pose_msg = Pose()
-                pose_msg.position.x = point_base[0]
-                pose_msg.position.y = point_base[1]
-                pose_msg.position.z = point_base[2]
+                pose_msg.position.x = x_cam * 0.001
+                pose_msg.position.y = y_cam * 0.001
+                pose_msg.position.z = z_cam * 0.001
                 pose_msg.orientation.x = detection.pose.orientation.x
                 pose_msg.orientation.y = detection.pose.orientation.y
                 pose_msg.orientation.z = detection.pose.orientation.z
                 pose_msg.orientation.w = detection.pose.orientation.w
 
                 pose_array_msg = PoseArray()
-                pose_array_msg.header.frame_id = self.base_frame
+                pose_array_msg.header.frame_id = camera_frame
                 pose_array_msg.header.stamp = rospy.Time.now()
                 pose_array_msg.poses.append(pose_msg)
 
@@ -84,7 +78,7 @@ class Hand3DNode(object):
                                                 (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
                                                 rospy.Time.now(),
                                                 detection.hand,
-                                                self.base_frame)
+                                                camera_frame)
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
                 rospy.logerr(e)

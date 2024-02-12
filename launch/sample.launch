@@ -4,7 +4,6 @@
   <arg name="input_detections" default="/hand_object_detection_node/hand_detections"/>
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
-  <arg name="base_frame" default="base_footprint" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
@@ -50,7 +49,6 @@
     <remap from="~camera_info" to="$(arg camera_info)" />
     <remap from="~input_detections" to="$(arg input_detections)" />
     <rosparam subst_value="true" >
-        base_frame: $(arg base_frame)
         slop: $(arg slop)
     </rosparam>
   </node>
