@@ -12,6 +12,7 @@ from hand_object_detection_ros.msg import HandDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
+
 class Hand3DNode(object):
     def __init__(self):
         self.bridge = CvBridge()
@@ -19,15 +20,16 @@ class Hand3DNode(object):
         self.tf_broadcaster = tf.TransformBroadcaster()
 
         # Subscribe to the camera info and depth image topics
-        self.info_sub = mf.Subscriber('~camera_info', CameraInfo, buff_size=2**24)
-        self.depth_sub = mf.Subscriber('~input_depth', Image, buff_size=2**24)
-        self.hand_sub = mf.Subscriber('~input_detections', HandDetectionArray, buff_size=2**24)
-        self.ts = mf.ApproximateTimeSynchronizer([self.info_sub, self.depth_sub, self.hand_sub], queue_size=1, slop=0.15)
+        self.info_sub = mf.Subscriber("~camera_info", CameraInfo, buff_size=2**24)
+        self.depth_sub = mf.Subscriber("~input_depth", Image, buff_size=2**24)
+        self.hand_sub = mf.Subscriber("~input_detections", HandDetectionArray, buff_size=2**24)
+        self.ts = mf.ApproximateTimeSynchronizer(
+            [self.info_sub, self.depth_sub, self.hand_sub], queue_size=1, slop=0.15
+        )
         self.ts.registerCallback(self.callback)
 
         # Publisher for Pose
         self.pose_array_pub = rospy.Publisher("~hand_pose", PoseArray, queue_size=10)
-
 
     def callback(self, cam_info_data, depth_data, hand_data):
         # Extract the camera frame from the image message
@@ -45,7 +47,10 @@ class Hand3DNode(object):
             # Get the depth value at the 2D point
             point_2d = (detection.pose.position.x, detection.pose.position.y)
             # clip the point to the image size
-            point_2d = (min(max(detection.pose.position.x, 0), cv_image.shape[1] - 1), min(max(detection.pose.position.y, 0), cv_image.shape[0] - 1))
+            point_2d = (
+                min(max(detection.pose.position.x, 0), cv_image.shape[1] - 1),
+                min(max(detection.pose.position.y, 0), cv_image.shape[0] - 1),
+            )
             depth = cv_image[int(point_2d[1]), int(point_2d[0])]
             if np.isnan(depth):
                 continue
@@ -61,10 +66,7 @@ class Hand3DNode(object):
                 pose_msg.position.x = x_cam * 0.001
                 pose_msg.position.y = y_cam * 0.001
                 pose_msg.position.z = z_cam * 0.001
-                pose_msg.orientation.x = detection.pose.orientation.x
-                pose_msg.orientation.y = detection.pose.orientation.y
-                pose_msg.orientation.z = detection.pose.orientation.z
-                pose_msg.orientation.w = detection.pose.orientation.w
+                pose_msg.orientation = detection.pose.orientation
 
                 pose_array_msg = PoseArray()
                 pose_array_msg.header.frame_id = camera_frame
@@ -74,16 +76,19 @@ class Hand3DNode(object):
                 self.pose_array_pub.publish(pose_array_msg)
 
                 # Broadcast the transform
-                self.tf_broadcaster.sendTransform((pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
-                                                (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
-                                                rospy.Time.now(),
-                                                detection.hand,
-                                                camera_frame)
+                self.tf_broadcaster.sendTransform(
+                    (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
+                    (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
+                    rospy.Time.now(),
+                    detection.hand,
+                    camera_frame,
+                )
 
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
                 rospy.logerr(e)
 
-if __name__ == '__main__':
-    rospy.init_node('hand_3d_node')
+
+if __name__ == "__main__":
+    rospy.init_node("hand_3d_node")
     node = Hand3DNode()
     rospy.spin()

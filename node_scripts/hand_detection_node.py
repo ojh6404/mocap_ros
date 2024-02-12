@@ -7,6 +7,7 @@ import rospy
 import torch
 import numpy as np
 import cv2
+from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Pose
@@ -42,24 +43,24 @@ PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])
 PALM_JOINTS = [0, 2, 5, 9, 13, 17]
 WEIGHTS = np.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
 
-def angle_axis_to_quaternion(angle_axis):
-    # Calculate the rotation angle (magnitude of the angle-axis vector)
-    theta = np.linalg.norm(angle_axis)
 
-    # Normalize the rotation axis
-    if theta > 0:
-        axis = angle_axis / theta
-    else:
-        # To handle the case of zero rotation gracefully
-        axis = np.zeros(3)
-
-    # Calculate the quaternion components
-    w = np.cos(theta / 2.0)
-    x = axis[0] * np.sin(theta / 2.0)
-    y = axis[1] * np.sin(theta / 2.0)
-    z = axis[2] * np.sin(theta / 2.0)
-
-    return np.array([w, x, y, z])
+def rotation_matrix_to_quaternion(R):
+    """Convert a rotation matrix to a quaternion.
+    Args:
+        R (np.ndarray): A 3x3 rotation matrix.
+    Returns:
+        np.ndarray: A 4-element unit quaternion.
+    """
+    q = np.empty((4,), dtype=np.float32)
+    M = R
+    q[0] = np.sqrt(np.maximum(0, 1 + M[0, 0] + M[1, 1] + M[2, 2])) / 2
+    q[1] = np.sqrt(np.maximum(0, 1 + M[0, 0] - M[1, 1] - M[2, 2])) / 2
+    q[2] = np.sqrt(np.maximum(0, 1 - M[0, 0] + M[1, 1] - M[2, 2])) / 2
+    q[3] = np.sqrt(np.maximum(0, 1 - M[0, 0] - M[1, 1] + M[2, 2])) / 2
+    q[1] *= np.sign(q[1] * (M[2, 1] - M[1, 2]))
+    q[2] *= np.sign(q[2] * (M[0, 2] - M[2, 0]))
+    q[3] *= np.sign(q[3] * (M[1, 0] - M[0, 1]))
+    return q
 
 
 def draw_axis(img, origin, axis, color, scale=20):
@@ -123,29 +124,35 @@ class HandObjectDetectionNode(object):
                         hand_orientation = pred_output_list[0][hand]["pred_hand_pose"][0, :3].astype(
                             np.float32
                         )  # angle-axis representation
-                        quat = angle_axis_to_quaternion(hand_orientation)
 
                         hand_pose = Pose()
                         hand_pose.position.x = hand_origin[0]
                         hand_pose.position.y = hand_origin[1]
-                        hand_pose.position.z = 0 # cause it's working in 2D
-                        hand_pose.orientation.x = quat[1]
-                        hand_pose.orientation.y = quat[2]
-                        hand_pose.orientation.z = quat[3]
-                        hand_pose.orientation.w = quat[0]
+                        hand_pose.position.z = 0  # cause it's working in 2D
 
                         for detection in detection_results.detections:
                             if detection.hand == hand:
                                 detection.pose = hand_pose
 
-                        R, _ = cv2.Rodrigues(hand_orientation)
-                        x_axis = np.array([1, 0, 0])
-                        y_axis = np.array([0, 1, 0])
-                        z_axis = np.array([0, 0, 1])
-
-                        x_axis_rotated = R @ x_axis
-                        y_axis_rotated = R @ y_axis
-                        z_axis_rotated = R @ z_axis
+                        rotation, _ = cv2.Rodrigues(hand_orientation)
+                        quat = rotation_matrix_to_quaternion(rotation)  # [w, x, y, z]
+                        if hand == "right_hand":
+                            x_axis = np.array([0, 0, 1])
+                            y_axis = np.array([0, -1, 0])
+                            z_axis = np.array([-1, 0, 0])
+                            rotated_result = R.from_rotvec(np.pi * np.array([1, 0, 0])) * R.from_quat(quat)
+                            quat = rotated_result.as_quat()  # [w, x, y, z]
+                        else:
+                            x_axis = np.array([0, 0, 1])
+                            y_axis = np.array([0, 1, 0])
+                            z_axis = np.array([1, 0, 0])
+                        hand_pose.orientation.x = quat[1]
+                        hand_pose.orientation.y = quat[2]
+                        hand_pose.orientation.z = quat[3]
+                        hand_pose.orientation.w = quat[0]
+                        x_axis_rotated = rotation @ x_axis
+                        y_axis_rotated = rotation @ y_axis
+                        z_axis_rotated = rotation @ z_axis
 
                         # visualize hand orientation
                         vis_im = draw_axis(vis_im, hand_origin, x_axis_rotated, (0, 0, 255))  # x: red
@@ -170,13 +177,7 @@ class HandObjectDetectionNode(object):
             hand_detection.state = (
                 "N"
                 if hand_det[5] == 0
-                else "S"
-                if hand_det[5] == 1
-                else "O"
-                if hand_det[5] == 2
-                else "P"
-                if hand_det[5] == 3
-                else "F"
+                else "S" if hand_det[5] == 1 else "O" if hand_det[5] == 2 else "P" if hand_det[5] == 3 else "F"
             )
             if hand_detection.state != "N" and obj_dets is not None:
                 hand_detection.object_rect = self.get_rect(obj_dets[img_obj_id[i]])
