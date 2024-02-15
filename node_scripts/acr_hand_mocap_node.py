@@ -134,13 +134,9 @@ class ACRHandMocapNode(object):
         self.pub_debug_image.publish(vis_msg)
 
     def init_model(self):
-        conf_threshold = rospy.get_param("~conf_threshold", 0.5)
-        init_args = ['--demo_mode', 'webcam', '-t', '--centermap_conf_thresh', str(conf_threshold)]
+        init_args = ['--demo_mode', 'webcam', '-t']
         with ConfigContext(parse_args(init_args)) as args_set:
             print('Loading the configurations from {}'.format(args_set.configs_yml))
-            print('Using the following configurations:')
-            print(args_set.centermap_conf_thresh)
-            # args_set.centermap_conf_thresh = rospy.get_param("~conf_threshold", 0.5)
 
             self.demo_cfg = {'mode':'parsing', 'calc_loss': False}
             self.project_dir = config.project_dir

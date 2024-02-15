@@ -5,7 +5,6 @@
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
-  <arg name="conf_threshold" default="0.5" />
   <arg name="track_3d" default="false" />
   <arg name="slop" default="0.1" />
 
@@ -34,7 +33,6 @@
     <remap from="~input_image" to="$(arg _input_image)" />
     <rosparam subst_value="true" >
         device: $(arg device)
-        conf_threshold: $(arg conf_threshold)
     </rosparam>
   </node>
   <!-- hand 3d track node node -->
