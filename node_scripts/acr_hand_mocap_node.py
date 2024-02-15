@@ -68,14 +68,14 @@ class ACRHandMocapNode(object):
     def callback_image(self, msg):
         img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         outputs = self.single_image_forward(img)
+        hand_detections = HandDetectionArray()
+        hand_detections.header = msg.header
         if outputs is not None and outputs['detection_flag']: # hand detected
             outputs, results = self.process_results(outputs)
             # outputs : ['l_params_maps', 'r_params_maps', 'l_center_map', 'r_center_map', 'l_prior_maps', 'r_prior_maps', 'segms', 'l_params_pred', 'r_params_pred', 'detection_flag', 'params_pred', 'l_centers_pred', 'r_centers_pred', 'l_centers_conf', 'r_centers_conf', 'left_hand_num', 'right_hand_num', 'reorganize_idx', 'detection_flag_cache', 'output_hand_type', 'params_dict', 'meta_data', 'verts', 'j3d', 'verts_camed', 'pj2d', 'cam_trans', 'pj2d_org']
             # print("j3d", one_hand_result['j3d']) # shape: (21, 3)
             # print("pj2d_org", one_hand_result['pj2d_org']) # shape: (21, 2)
 
-            hand_detections = HandDetectionArray()
-            hand_detections.header = msg.header
 
             # visualization: render mesh to image
             show_items_list = ['mesh'] # ['org_img', 'mesh', 'pj2d', 'centermap']
