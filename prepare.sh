@@ -9,3 +9,9 @@ bash scripts/install_frankmocap.sh
 mkdir -p extra_data/smpl
 gdown https://drive.google.com/uc\?id\=1Vx4tRkTpi0M4awzb1AiTTaosOMEuK2O5 -O extra_data/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
 gdown https://drive.google.com/uc\?id\=1zG9X15BGX3ywxn4ZgBUCJSGyNi7m2VWC -O extra_data/smpl/SMPLX_NEUTRAL.pkl
+# download checkpoints and mano model for acr
+cd ../Arbitrary-Hands-3D-Reconstruction && python3 -m pip install -r requirements.txt
+gdown https://drive.google.com/uc\?id\=1sgZ9dF0FH5z9wSXm9dNXuSyN3ZaTX28U -O mano/MANO_RIGHT.pkl
+gdown https://drive.google.com/uc\?id\=17GjLggQpHoJKaZsvG2kSS9Zn4Fp3lW3w -O mano/MANO_LEFT.pkl
+mkdir -p checkpoints && gdown https://drive.google.com/uc\?id\=1aCeKMVgIPqYjafMyUJsYzc0h6qeuveG9 -O checkpoints/wild.pkl
+python3 -m pip install PyOpenGL==3.1.7 PyOpenGL_accelerate==3.1.7 numpy==1.23.1

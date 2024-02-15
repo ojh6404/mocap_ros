@@ -113,6 +113,9 @@ RUN cd ~/catkin_ws/src/ &&\
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
 RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/node_scripts
 
+RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/Arbitrary-Hands-3D-Reconstruction
+COPY --chown=user Arbitrary-Hands-3D-Reconstruction /home/user/catkin_ws/src/hand_object_detection_ros/Arbitrary-Hands-3D-Reconstruction
+
 #########################################
 ############ ENV VARIABLE STUFF #########
 #########################################
