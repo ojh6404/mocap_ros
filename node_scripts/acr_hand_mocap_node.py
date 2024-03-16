@@ -127,7 +127,7 @@ class ACRHandMocapNode(object):
                 hand_detection.pose = hand_pose
                 hand_detections.detections.append(hand_detection)
         else: # not detected
-            vis_img = img
+            vis_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         vis_msg = self.bridge.cv2_to_imgmsg(vis_img, encoding="rgb8")
         vis_msg.header = msg.header
         self.pub_hand_detections.publish(hand_detections)
