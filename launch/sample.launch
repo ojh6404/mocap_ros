@@ -8,6 +8,7 @@
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
   <arg name="with_handmocap" default="true" />
+  <arg name="visualizer" default="opengl" />  <!-- opengl or pytorch3d -->
   <arg name="track_3d" default="false" />
   <arg name="slop" default="0.1" />
 
@@ -39,6 +40,7 @@
         hand_threshold: $(arg hand_threshold)
         object_threshold: $(arg object_threshold)
         with_handmocap: $(arg with_handmocap)
+        visualizer: $(arg visualizer)
     </rosparam>
   </node>
   <!-- hand 3d track node node -->
