@@ -34,7 +34,6 @@ sys.path.insert(0, FRANKMOCAP_PATH)
 
 import mocap_utils.demo_utils as demo_utils
 from handmocap.hand_mocap_api import HandMocap
-from renderer.visualizer import Visualizer
 
 np.random.seed(cfg.RNG_SEED)
 PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])
@@ -75,6 +74,7 @@ class HandObjectDetectionNode(object):
         self.hand_threshold = rospy.get_param("~hand_threshold", 0.9)
         self.object_threshold = rospy.get_param("~object_threshold", 0.9)
         self.with_handmocap = rospy.get_param("~with_handmocap", True)
+        self.visualizer = rospy.get_param("~visualizer", "opengl") # pytorch3d, opendr, opengl
         self.init_model()
         self.bridge = CvBridge()
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
@@ -158,7 +158,7 @@ class HandObjectDetectionNode(object):
                         vis_im = draw_axis(vis_im, hand_origin, x_axis_rotated, (0, 0, 255))  # x: red
                         vis_im = draw_axis(vis_im, hand_origin, y_axis_rotated, (0, 255, 0))  # y: green
                         vis_im = draw_axis(vis_im, hand_origin, z_axis_rotated, (255, 0, 0))  # z: blue
-        vis_msg = self.bridge.cv2_to_imgmsg(vis_im, encoding="rgb8")
+        vis_msg = self.bridge.cv2_to_imgmsg(vis_im.astype(np.uint8), encoding="rgb8")
         vis_msg.header = msg.header
         self.pub_hand_detections.publish(detection_results)
         self.pub_debug_image.publish(vis_msg)
@@ -228,7 +228,11 @@ class HandObjectDetectionNode(object):
         # frankmocap
         if self.with_handmocap:
             self.hand_mocap = HandMocap(FRANKMOCAP_CHECKPOINT, SMPL_DIR, device=self.device)
-            self.hand_mocap_visualizer = Visualizer("opengl")
+            if self.visualizer in ["pytorch3d", "opendr"]:
+                from renderer.screen_free_visualizer import Visualizer
+            else:
+                from renderer.visualizer import Visualizer
+            self.hand_mocap_visualizer = Visualizer(self.visualizer)
 
     def inference_step(self, im_blob, im_scales):
         im_data_pt = torch.as_tensor(im_blob, device=self.device).permute(0, 3, 1, 2)
