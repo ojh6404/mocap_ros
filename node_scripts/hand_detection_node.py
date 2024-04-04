@@ -10,8 +10,8 @@ import cv2
 from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import Pose
-from jsk_recognition_msgs.msg import Rect
+from geometry_msgs.msg import Pose, Point
+from jsk_recognition_msgs.msg import Rect, Segment, HumanSkeleton
 from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
 FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
@@ -41,6 +41,29 @@ PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])
 # for calculating hand origin
 PALM_JOINTS = [0, 2, 5, 9, 13, 17]
 WEIGHTS = np.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
+
+FINGER_JOINTS_CONNECTION = [
+    (0, 1),     # wrist -> thumb0
+    (1, 2),     # thumb0 -> thumb1
+    (2, 3),     # thumb1 -> thumb2
+    (3, 4),     # thumb2 -> thumb3
+    (0, 5),     # wrist -> index0
+    (5, 6),     # index0 -> index1
+    (6, 7),     # index1 -> index2
+    (7, 8),     # index2 -> index3
+    (0, 9),     # wrist -> middle0
+    (9, 10),    # middle0 -> middle1
+    (10, 11),   # middle1 -> middle2
+    (11, 12),   # middle2 -> middle3
+    (0, 13),    # wrist -> ring0
+    (13, 14),   # ring0 -> ring1
+    (14, 15),   # ring1 -> ring2
+    (15, 16),   # ring2 -> ring3
+    (0, 17),    # wrist -> pinky0
+    (17, 18),   # pinky0 -> pinky1
+    (18, 19),   # pinky1 -> pinky2
+    (19, 20),   # pinky2 -> pinky3
+]
 
 
 def rotation_matrix_to_quaternion(R):
@@ -74,7 +97,7 @@ class HandObjectDetectionNode(object):
         self.hand_threshold = rospy.get_param("~hand_threshold", 0.9)
         self.object_threshold = rospy.get_param("~object_threshold", 0.9)
         self.with_handmocap = rospy.get_param("~with_handmocap", True)
-        self.visualizer = rospy.get_param("~visualizer", "opengl") # pytorch3d, opendr, opengl
+        self.visualizer = rospy.get_param("~visualizer", "opengl")  # pytorch3d, opendr, opengl
         self.init_model()
         self.bridge = CvBridge()
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
@@ -125,6 +148,21 @@ class HandObjectDetectionNode(object):
                             np.float32
                         )  # angle-axis representation
 
+                        joint_3d_coords = pred_output_list[0][hand]["pred_joints_smpl"]  # (21, 3)
+                        hand_skeleton = HumanSkeleton(header=msg.header)
+                        hand_skeleton.bone_names = []
+                        hand_skeleton.bones = []
+                        for i, (start, end) in enumerate(FINGER_JOINTS_CONNECTION):
+                            bone = Segment()
+                            bone.start_point = Point(
+                                x=joint_3d_coords[start][0], y=joint_3d_coords[start][1], z=joint_3d_coords[start][2]
+                            )
+                            bone.end_point = Point(
+                                x=joint_3d_coords[end][0], y=joint_3d_coords[end][1], z=joint_3d_coords[end][2]
+                            )
+                            hand_skeleton.bones.append(bone)
+                            hand_skeleton.bone_names.append(f"bone_{i}")
+
                         hand_pose = Pose()
                         hand_pose.position.x = hand_origin[0]
                         hand_pose.position.y = hand_origin[1]
@@ -133,6 +171,7 @@ class HandObjectDetectionNode(object):
                         for detection in detection_results.detections:
                             if detection.hand == hand:
                                 detection.pose = hand_pose
+                                detection.skeleton = hand_skeleton
 
                         rotation, _ = cv2.Rodrigues(hand_orientation)
                         quat = rotation_matrix_to_quaternion(rotation)  # [w, x, y, z]
