@@ -11,7 +11,8 @@ import cv2
 from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import Pose
+from geometry_msgs.msg import Pose, Point
+from jsk_recognition_msgs.msg import Segment, HumanSkeleton
 from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
 ACR_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/Arbitrary-Hands-3D-Reconstruction"
@@ -28,6 +29,28 @@ if args().model_precision=='fp16':
 from acr.model import ACR as ACR_v1
 from acr.mano_wrapper import MANOWrapper
 
+FINGER_JOINTS_CONNECTION = [
+    (0, 1),     # wrist -> thumb0
+    (1, 2),     # thumb0 -> thumb1
+    (2, 3),     # thumb1 -> thumb2
+    (3, 4),     # thumb2 -> thumb3
+    (0, 5),     # wrist -> index0
+    (5, 6),     # index0 -> index1
+    (6, 7),     # index1 -> index2
+    (7, 8),     # index2 -> index3
+    (0, 9),     # wrist -> middle0
+    (9, 10),    # middle0 -> middle1
+    (10, 11),   # middle1 -> middle2
+    (11, 12),   # middle2 -> middle3
+    (0, 13),    # wrist -> ring0
+    (13, 14),   # ring0 -> ring1
+    (14, 15),   # ring1 -> ring2
+    (15, 16),   # ring2 -> ring3
+    (0, 17),    # wrist -> pinky0
+    (17, 18),   # pinky0 -> pinky1
+    (18, 19),   # pinky1 -> pinky2
+    (19, 20),   # pinky2 -> pinky3
+]
 
 def rotation_matrix_to_quaternion(R):
     """Convert a rotation matrix to a quaternion.
@@ -94,6 +117,21 @@ class ACRHandMocapNode(object):
                 hand_pose.position.y = hand_origin[1]
                 hand_pose.position.z = 0  # cause it's working in 2D
 
+                j3d = result['j3d']
+                hand_skeleton = HumanSkeleton(header=msg.header)
+                hand_skeleton.bone_names = []
+                hand_skeleton.bones = []
+                for i, (start, end) in enumerate(FINGER_JOINTS_CONNECTION):
+                    bone = Segment()
+                    bone.start_point = Point(
+                        x=j3d[start][0], y=j3d[start][1], z=j3d[start][2]
+                    )
+                    bone.end_point = Point(
+                        x=j3d[end][0], y=j3d[end][1], z=j3d[end][2]
+                    )
+                    hand_skeleton.bones.append(bone)
+                    hand_skeleton.bone_names.append(f"bone_{i}")
+
                 rotation, _ = cv2.Rodrigues(hand_orientation)
                 quat = rotation_matrix_to_quaternion(rotation)  # [w, x, y, z]
                 # aligning x-axis to finger direction
@@ -125,6 +163,7 @@ class ACRHandMocapNode(object):
                 hand_detection.state = "N" # TODO dummy
                 hand_detection.score = 1.0 # TODO dummy
                 hand_detection.pose = hand_pose
+                hand_detection.skeleton = hand_skeleton
                 hand_detections.detections.append(hand_detection)
         else: # not detected
             vis_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)

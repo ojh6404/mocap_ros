@@ -1,12 +1,12 @@
 <launch>
   <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
   <arg name="input_depth" default="/kinect_head/depth_registered/image_raw"/>
-  <arg name="input_detections" default="/hand_object_detection_node/hand_detections"/>
+  <arg name="input_detections" default="/acr_hand_mocap_node/hand_detections"/>
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
   <arg name="track_3d" default="false" />
-  <arg name="slop" default="0.1" />
+  <arg name="slop" default="0.2" />
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
   <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
