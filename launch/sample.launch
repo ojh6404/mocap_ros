@@ -10,7 +10,8 @@
   <arg name="with_handmocap" default="true" />
   <arg name="visualizer" default="opengl" />  <!-- opengl or pytorch3d -->
   <arg name="track_3d" default="false" />
-  <arg name="slop" default="0.1" />
+  <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
+  <arg name="slop" default="0.15" />
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
   <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
@@ -52,6 +53,7 @@
     <remap from="~input_detections" to="$(arg input_detections)" />
     <rosparam subst_value="true" >
         slop: $(arg slop)
+        scale: $(arg depth_scale)
     </rosparam>
   </node>
 </launch>

@@ -18,13 +18,15 @@ class Hand3DNode(object):
         self.bridge = CvBridge()
         self.tf_listener = tf.TransformListener()
         self.tf_broadcaster = tf.TransformBroadcaster()
+        self.scale = rospy.get_param("~scale", 0.001)
+        self.slop = rospy.get_param("~slop", 0.15)
 
         # Subscribe to the camera info and depth image topics
         self.info_sub = mf.Subscriber("~camera_info", CameraInfo, buff_size=2**24)
         self.depth_sub = mf.Subscriber("~input_depth", Image, buff_size=2**24)
         self.hand_sub = mf.Subscriber("~input_detections", HandDetectionArray, buff_size=2**24)
         self.ts = mf.ApproximateTimeSynchronizer(
-            [self.info_sub, self.depth_sub, self.hand_sub], queue_size=1, slop=0.15
+            [self.info_sub, self.depth_sub, self.hand_sub], queue_size=1, slop=self.slop
         )
         self.ts.registerCallback(self.callback)
 
@@ -63,9 +65,9 @@ class Hand3DNode(object):
             try:
                 # Create PoseArray message and publish it
                 pose_msg = Pose()
-                pose_msg.position.x = x_cam * 0.001
-                pose_msg.position.y = y_cam * 0.001
-                pose_msg.position.z = z_cam * 0.001
+                pose_msg.position.x = x_cam * self.scale
+                pose_msg.position.y = y_cam * self.scale
+                pose_msg.position.z = z_cam * self.scale
                 pose_msg.orientation = detection.pose.orientation
 
                 pose_array_msg = PoseArray()
