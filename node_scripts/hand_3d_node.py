@@ -54,7 +54,7 @@ class Hand3DNode(object):
                 min(max(detection.pose.position.y, 0), cv_image.shape[0] - 1),
             )
             depth = cv_image[int(point_2d[1]), int(point_2d[0])]
-            if np.isnan(depth):
+            if np.isnan(depth) or (depth == 0.0):
                 continue
 
             # Calculate 3D coordinates in the camera frame
