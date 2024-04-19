@@ -11,6 +11,7 @@ from image_geometry import PinholeCameraModel
 from hand_object_detection_ros.msg import HandDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
+from scipy.signal import savgol_filter
 
 
 class Hand3DNode(object):
@@ -20,6 +21,11 @@ class Hand3DNode(object):
         self.tf_broadcaster = tf.TransformBroadcaster()
         self.scale = rospy.get_param("~scale", 0.001)
         self.slop = rospy.get_param("~slop", 0.15)
+        self.apply_filter = rospy.get_param("~apply_filter", False)
+        if self.apply_filter:
+            self.window_size = rospy.get_param("~window_size", 5)
+            self.poly_order = rospy.get_param("~poly_order", 3)
+            self.data_queue = []
 
         # Subscribe to the camera info and depth image topics
         self.info_sub = mf.Subscriber("~camera_info", CameraInfo, buff_size=2**24)
@@ -32,6 +38,14 @@ class Hand3DNode(object):
 
         # Publisher for Pose
         self.pose_array_pub = rospy.Publisher("~hand_pose", PoseArray, queue_size=10)
+
+    def apply_savgol_filter(self, data):
+        if len(data) < self.window_size:
+            return data[-1]
+        else:
+            filtered_data = savgol_filter(np.array(data), self.window_size, self.poly_order)
+            return filtered_data[-1]
+
 
     def callback(self, cam_info_data, depth_data, hand_data):
         # Extract the camera frame from the image message
@@ -61,6 +75,14 @@ class Hand3DNode(object):
             x_cam = (point_2d[0] - camera_model.cx()) * depth / camera_model.fx()
             y_cam = (point_2d[1] - camera_model.cy()) * depth / camera_model.fy()
             z_cam = depth
+
+            if self.apply_filter:
+                self.data_queue.append([x_cam, y_cam, z_cam])
+                if len(self.data_queue) > self.window_size:
+                    self.data_queue.pop(0)
+                x_cam = self.apply_savgol_filter([x[0] for x in self.data_queue])
+                y_cam = self.apply_savgol_filter([x[1] for x in self.data_queue])
+                z_cam = self.apply_savgol_filter([x[2] for x in self.data_queue])
 
             try:
                 # Create PoseArray message and publish it
@@ -93,4 +115,5 @@ class Hand3DNode(object):
 if __name__ == "__main__":
     rospy.init_node("hand_3d_node")
     node = Hand3DNode()
+    rospy.loginfo("Hand 3D node started")
     rospy.spin()
