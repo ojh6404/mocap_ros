@@ -80,6 +80,18 @@ def draw_axis(img, origin, axis, color, scale=20):
 class ACRHandMocapNode(object):
     def __init__(self):
         self.device = rospy.get_param("~device", "cuda:0")
+        self.hand_bbox_size_thresh = rospy.get_param("~hand_bbox_size_thresh", 50)
+        self.renderer = rospy.get_param("~renderer", "pytorch3d") # pyrender
+        self.detection_thresh = rospy.get_param("~detection_thresh", 0.5)
+        self.temporal_optimization = rospy.get_param("~temporal_optimization", True)
+        self.smooth_coeff = rospy.get_param("~smooth_coeff", 4.0)
+        self.visualization = rospy.get_param("~visualization", True)
+
+        args().renderer = self.renderer
+        args().centermap_conf_thresh = self.detection_thresh
+        args().temporal_optimization = self.temporal_optimization
+        args().smooth_coeff = self.smooth_coeff
+
         self.init_model()
         self.bridge = CvBridge()
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
@@ -91,8 +103,7 @@ class ACRHandMocapNode(object):
     def callback_image(self, msg):
         img = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         outputs = self.single_image_forward(img)
-        hand_detections = HandDetectionArray()
-        hand_detections.header = msg.header
+        vis_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         if outputs is not None and outputs['detection_flag']: # hand detected
             outputs, results = self.process_results(outputs)
             # outputs : ['l_params_maps', 'r_params_maps', 'l_center_map', 'r_center_map', 'l_prior_maps', 'r_prior_maps', 'segms', 'l_params_pred', 'r_params_pred', 'detection_flag', 'params_pred', 'l_centers_pred', 'r_centers_pred', 'l_centers_conf', 'r_centers_conf', 'left_hand_num', 'right_hand_num', 'reorganize_idx', 'detection_flag_cache', 'output_hand_type', 'params_dict', 'meta_data', 'verts', 'j3d', 'verts_camed', 'pj2d', 'cam_trans', 'pj2d_org']
@@ -101,16 +112,29 @@ class ACRHandMocapNode(object):
 
 
             # visualization: render mesh to image
-            show_items_list = ['mesh'] # ['org_img', 'mesh', 'pj2d', 'centermap']
-            results_dict, _ = self.visualizer.visulize_result_live(outputs, img, outputs['meta_data'], \
-                show_items=show_items_list, vis_cfg={'settings':['put_org']}, save2html=False)
-            vis_img = results_dict['mesh_rendering_orgimgs']['figs'][0]
+            if self.visualization:
+                show_items_list = ['mesh'] # ['org_img', 'mesh', 'pj2d', 'centermap']
+                results_dict, _ = self.visualizer.visulize_result_live(outputs, img, outputs['meta_data'], \
+                    show_items=show_items_list, vis_cfg={'settings':['put_org']}, save2html=False)
+                vis_img = results_dict['mesh_rendering_orgimgs']['figs'][0]
 
-            # visualize pj2d_org keypoints
+            hand_detections = HandDetectionArray()
+            hand_detections.header = msg.header
             for result in results: # for each hand
                 pj2d_org = result['pj2d_org']
                 hand_orientation = result["poses"][:3].astype(np.float32) # angle-axis representation
                 hand_origin = np.array([pj2d_org[0, 0], pj2d_org[0, 1], 0])
+
+                # hand bbox
+                hand_left_x = np.min(pj2d_org[:, 0])
+                hand_right_x = np.max(pj2d_org[:, 0])
+                hand_top_y = np.min(pj2d_org[:, 1])
+                hand_bottom_y = np.max(pj2d_org[:, 1])
+
+                hand_bbox_size = np.sqrt((hand_right_x - hand_left_x) * (hand_bottom_y - hand_top_y))
+                if hand_bbox_size < self.hand_bbox_size_thresh: # filter mis-detected hand
+                    continue
+
 
                 hand_pose = Pose()
                 hand_pose.position.x = hand_origin[0]
@@ -165,18 +189,18 @@ class ACRHandMocapNode(object):
                 hand_detection.pose = hand_pose
                 hand_detection.skeleton = hand_skeleton
                 hand_detections.detections.append(hand_detection)
+            if len(hand_detections.detections) > 0:
+                self.pub_hand_detections.publish(hand_detections)
         else: # not detected
-            vis_img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+            pass
         vis_msg = self.bridge.cv2_to_imgmsg(vis_img, encoding="rgb8")
         vis_msg.header = msg.header
-        self.pub_hand_detections.publish(hand_detections)
         self.pub_debug_image.publish(vis_msg)
 
     def init_model(self):
         init_args = ['--demo_mode', 'webcam', '-t']
         with ConfigContext(parse_args(init_args)) as args_set:
             print('Loading the configurations from {}'.format(args_set.configs_yml))
-
             self.demo_cfg = {'mode':'parsing', 'calc_loss': False}
             self.project_dir = config.project_dir
             self._initialize_(vars(args() if args_set is None else args_set))
@@ -202,8 +226,7 @@ class ACRHandMocapNode(object):
     def _build_model_(self):
         model = ACR_v1().eval()
         model = load_model(os.path.join(self.project_dir, self.model_path), model, prefix = 'module.', drop_prefix='', fix_loaded=False)
-        # train_entire_model(model)
-        self.model = nn.DataParallel(model.to(self.device))
+        self.model = model.to(self.device)
         self.model.eval()
         self.mano_regression = MANOWrapper().to(self.device)
 
