@@ -6,10 +6,35 @@ find_package(catkin REQUIRED COMPONENTS
   geometry_msgs
   jsk_recognition_msgs
   jsk_topic_tools
+  catkin_virtualenv
 )
 
 catkin_package(
   CATKIN_DEPENDS
+)
+
+
+catkin_generate_virtualenv(
+  INPUT_REQUIREMENTS requirements.txt
+  PYTHON_INTERPRETER python3.8
+  USE_SYSTEM_PACKAGES TRUE
+  ISOLATE_REQUIREMENTS FALSE
+  CHECK_VENV FALSE
+)
+
+# file(GLOB SCRIPT_PROGRAMS scripts/*.py)
+# catkin_install_python(
+#   PROGRAMS ${SCRIPT_PROGRAMS}
+#   DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}/scripts/)
+file(GLOB SCRIPTS_FILES node_scripts/*.py)
+catkin_install_python(
+  PROGRAMS ${SCRIPTS_FILES}
+  DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(FILES
+  requirements.txt
+  DESTINATION ${CATKIN_PACKAGE_SHARE_DESTINATION}
 )
 
 include_directories(

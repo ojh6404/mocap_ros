@@ -7,7 +7,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Optional
 
-_ROS_ROOT_INSIDE_CONTAINER = "/home/user/catkin_ws/src/hand_object_detection_ros"
+_ROS_ROOT_INSIDE_CONTAINER = "/home/user/catkin_ws/src/hand_object_detection_ros/hamer_ros"
 _TORCH_CACHE_DIR_INSIDE_CONTAINER = "/home/user/.cache/torch"
 _TORCH_CACHE_DIR = Path.home() / ".cache" / "torch"
 
@@ -54,12 +54,12 @@ if __name__ == "__main__":
                 -v {tmp_launch_path}:{ros_root}/launch \
                 -v {torch_cache_dir}:{torch_cache_dir_inside_container} \
                 --rm --net=host -it \
-                --gpus 1 hand_object_detection_ros:latest \
+                --gpus 1 hamer_ros:latest \
                 /bin/bash -i -c \
                 "source ~/.bashrc; \
-                roscd hand_object_detection_ros; \
+                roscd hamer_ros; \
                 rossetip; rossetmaster {host}; \
-                xvfb-run -a roslaunch hand_object_detection_ros {launch_file_name} {launch_args}"
+                xvfb-run -a roslaunch hamer_ros {launch_file_name} {launch_args}"
                 """.format(
             node_scripts_dir=Path(__file__).resolve().parent / "node_scripts",
             tmp_launch_path=tmp_launch_path,

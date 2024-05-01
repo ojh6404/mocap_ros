@@ -9,6 +9,7 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <buildtool_depend>python3-catkin-pkg-modules</buildtool_depend>.
+  <build_depend>catkin_virtualenv</build_depend>
 
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
@@ -22,4 +23,7 @@
   <test_depend>rostest</test_depend>
   <test_depend>image_publisher</test_depend>
 
+  <export>
+    <pip_requirements>requirements.txt</pip_requirements>
+  </export>
 </package>
