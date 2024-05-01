@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>hand_object_detection_ros</name>
+  <name>hand_object_detection</name>
   <version>0.0.1</version>
   <description>Hand Object Detection ROS package</description>
 
@@ -9,12 +9,12 @@
 
   <buildtool_depend>catkin</buildtool_depend>
   <buildtool_depend>python3-catkin-pkg-modules</buildtool_depend>.
-  <build_depend>message_generation</build_depend>
 
   <exec_depend>message_runtime</exec_depend>
   <exec_depend>sensor_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
   <exec_depend>jsk_recognition_msgs</exec_depend>
+  <exec_depend>hand_object_detection_msgs</exec_depend>
   <exec_depend>jsk_topic_tools</exec_depend>
   <exec_depend>cv_bridge</exec_depend>
 

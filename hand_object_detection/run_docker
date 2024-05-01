@@ -1,0 +1,73 @@
+#!/usr/bin/env python3
+import argparse
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from tempfile import TemporaryDirectory
+from typing import Optional
+
+_ROS_ROOT_INSIDE_CONTAINER = "/home/user/catkin_ws/src/hand_object_detection_ros"
+_TORCH_CACHE_DIR_INSIDE_CONTAINER = "/home/user/.cache/torch"
+_TORCH_CACHE_DIR = Path.home() / ".cache" / "torch"
+
+def add_prefix(file_path: Path, prefix: str) -> Path:
+    parent = file_path.parent
+    return parent / (prefix + file_path.name)
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-launch", type=str, help="launch file name")
+    parser.add_argument(
+        "-host", type=str, default="pr1040", help="host name or ip-address"
+    )
+    parser.add_argument(
+        "launch_args",
+        nargs=argparse.REMAINDER,
+        help="launch args in ros style e.g. foo:=var",
+    )
+    args = parser.parse_args()
+
+    mount_path_str: Optional[str] = Path(__file__).resolve().parent / "launch"
+    assert mount_path_str is not None
+    mount_path = Path(mount_path_str)
+
+    launch_file_name: Optional[str] = args.launch
+    assert launch_file_name is not None
+
+    for launch_arg in args.launch_args:
+        assert bool(re.match(r".*:=.*", launch_arg))
+    launch_args = " ".join(args.launch_args)
+
+    with TemporaryDirectory() as td:
+        tmp_launch_path = Path(td) / "launch"
+
+        if mount_path.is_dir():
+            shutil.copytree(mount_path, tmp_launch_path)
+        else:
+            shutil.copyfile(mount_path, tmp_launch_path)
+
+        docker_run_command = """
+            docker run \
+                -v {node_scripts_dir}:{ros_root}/node_scripts \
+                -v {tmp_launch_path}:{ros_root}/launch \
+                -v {torch_cache_dir}:{torch_cache_dir_inside_container} \
+                --rm --net=host -it \
+                --gpus 1 hand_object_detection_ros:latest \
+                /bin/bash -i -c \
+                "source ~/.bashrc; \
+                roscd hand_object_detection_ros; \
+                rossetip; rossetmaster {host}; \
+                xvfb-run -a roslaunch hand_object_detection_ros {launch_file_name} {launch_args}"
+                """.format(
+            node_scripts_dir=Path(__file__).resolve().parent / "node_scripts",
+            tmp_launch_path=tmp_launch_path,
+            torch_cache_dir=_TORCH_CACHE_DIR,
+            torch_cache_dir_inside_container=_TORCH_CACHE_DIR_INSIDE_CONTAINER,
+            ros_root=_ROS_ROOT_INSIDE_CONTAINER,
+            host=args.host,
+            launch_file_name=launch_file_name,
+            launch_args=launch_args,
+        )
+        subprocess.call(docker_run_command, shell=True)
