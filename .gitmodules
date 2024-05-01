@@ -1,9 +1,9 @@
 [submodule "frankmocap"]
-	path = hand_object_detection/frankmocap
+	path = third_party/frankmocap
 	url = https://github.com/ojh6404/frankmocap.git
 [submodule "Arbitrary-Hands-3D-Reconstruction"]
-	path = hand_object_detection/Arbitrary-Hands-3D-Reconstruction
+	path = third_party/Arbitrary-Hands-3D-Reconstruction
 	url = https://github.com/ojh6404/Arbitrary-Hands-3D-Reconstruction.git
 [submodule "hamer_ros/hamer"]
-	path = hamer_ros/hamer
+	path = third_party/hamer
 	url = https://github.com/ojh6404/hamer.git
