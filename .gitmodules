@@ -1,9 +1,9 @@
-[submodule "frankmocap"]
+[submodule "third_party/frankmocap"]
 	path = third_party/frankmocap
 	url = https://github.com/ojh6404/frankmocap.git
-[submodule "Arbitrary-Hands-3D-Reconstruction"]
+[submodule "third_party/Arbitrary-Hands-3D-Reconstruction"]
 	path = third_party/Arbitrary-Hands-3D-Reconstruction
 	url = https://github.com/ojh6404/Arbitrary-Hands-3D-Reconstruction.git
-[submodule "hamer_ros/hamer"]
+[submodule "third_party/hamer"]
 	path = third_party/hamer
 	url = https://github.com/ojh6404/hamer.git
