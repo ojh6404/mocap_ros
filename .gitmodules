@@ -4,3 +4,6 @@
 [submodule "Arbitrary-Hands-3D-Reconstruction"]
 	path = Arbitrary-Hands-3D-Reconstruction
 	url = https://github.com/ojh6404/Arbitrary-Hands-3D-Reconstruction.git
+[submodule "hamer"]
+	path = hamer
+	url = https://github.com/ojh6404/hamer.git
