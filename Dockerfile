@@ -66,6 +66,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
     python3-vcstools \
     python-is-python3 \
     python3-pip \
+    python3-tk \
     && rm -rf /var/lib/apt/lists/*
 
 # install ros packages
@@ -105,7 +106,6 @@ RUN cd ~/catkin_ws/src/hand_object_detection_ros && ./prepare.sh
 RUN cd ~/catkin_ws/src/ &&\
     source /opt/ros/noetic/setup.bash &&\
     rosdep install --from-paths . --ignore-src -y -r &&\
-    cd ~/catkin_ws/src/hand_object_detection_ros &&\
     cd ~/catkin_ws && catkin init && catkin build &&\
     rm -rf /home/user/.cache/pip
 
