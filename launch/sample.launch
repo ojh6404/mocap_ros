@@ -8,7 +8,10 @@
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
   <arg name="with_handmocap" default="true" />
-  <arg name="visualizer" default="opengl" />  <!-- opengl or pytorch3d -->
+  <arg name="mocap_model" default="frankmocap" />  <!-- frankmocap, hamer -->
+  <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
+  <arg name="render_type" default="opengl" />  <!-- opengl or pytorch3d -->
+  <arg name="rescale_factor" default="2.0" />  <!-- for hamer -->
   <arg name="track_3d" default="false" />
   <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
   <arg name="slop" default="0.15" />
@@ -34,7 +37,7 @@
 
   <!-- hand_object_detection node -->
   <node name="hand_object_detection_node"
-        pkg="hand_object_detection_ros" type="hand_detection_node.py"
+        pkg="hand_object_detection_ros" type="hand_object_detection_node.py"
         output="screen" >
     <remap from="~input_image" to="$(arg _input_image)" />
     <rosparam subst_value="true" >
@@ -42,7 +45,10 @@
         hand_threshold: $(arg hand_threshold)
         object_threshold: $(arg object_threshold)
         with_handmocap: $(arg with_handmocap)
-        visualizer: $(arg visualizer)
+        mocap_model: $(arg mocap_model)
+        visualize: $(arg visualize)
+        render_type: $(arg render_type)
+        rescale_factor: $(arg rescale_factor)
     </rosparam>
   </node>
   <!-- hand 3d track node node -->

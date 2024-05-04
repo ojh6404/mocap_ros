@@ -14,7 +14,7 @@
   <arg name="visualization" default="true" />
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
-  <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
+  <arg name="_input_image" value="/acr_hand_mocap_node/input_image" if="$(arg decompress)" />
 
   <!-- Image Decompress -->
   <node name="image_decompresser"

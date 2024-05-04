@@ -29,53 +29,7 @@ if args().model_precision=='fp16':
 from acr.model import ACR as ACR_v1
 from acr.mano_wrapper import MANOWrapper
 
-FINGER_JOINTS_CONNECTION = [
-    (0, 1),     # wrist -> thumb0
-    (1, 2),     # thumb0 -> thumb1
-    (2, 3),     # thumb1 -> thumb2
-    (3, 4),     # thumb2 -> thumb3
-    (0, 5),     # wrist -> index0
-    (5, 6),     # index0 -> index1
-    (6, 7),     # index1 -> index2
-    (7, 8),     # index2 -> index3
-    (0, 9),     # wrist -> middle0
-    (9, 10),    # middle0 -> middle1
-    (10, 11),   # middle1 -> middle2
-    (11, 12),   # middle2 -> middle3
-    (0, 13),    # wrist -> ring0
-    (13, 14),   # ring0 -> ring1
-    (14, 15),   # ring1 -> ring2
-    (15, 16),   # ring2 -> ring3
-    (0, 17),    # wrist -> pinky0
-    (17, 18),   # pinky0 -> pinky1
-    (18, 19),   # pinky1 -> pinky2
-    (19, 20),   # pinky2 -> pinky3
-]
-
-def rotation_matrix_to_quaternion(R):
-    """Convert a rotation matrix to a quaternion.
-    Args:
-        R (np.ndarray): A 3x3 rotation matrix.
-    Returns:
-        np.ndarray: A 4-element unit quaternion.
-    """
-    q = np.empty((4,), dtype=np.float32)
-    M = R
-    q[0] = np.sqrt(np.maximum(0, 1 + M[0, 0] + M[1, 1] + M[2, 2])) / 2
-    q[1] = np.sqrt(np.maximum(0, 1 + M[0, 0] - M[1, 1] - M[2, 2])) / 2
-    q[2] = np.sqrt(np.maximum(0, 1 - M[0, 0] + M[1, 1] - M[2, 2])) / 2
-    q[3] = np.sqrt(np.maximum(0, 1 - M[0, 0] - M[1, 1] + M[2, 2])) / 2
-    q[1] *= np.sign(q[1] * (M[2, 1] - M[1, 2]))
-    q[2] *= np.sign(q[2] * (M[0, 2] - M[2, 0]))
-    q[3] *= np.sign(q[3] * (M[1, 0] - M[0, 1]))
-    return q
-
-
-def draw_axis(img, origin, axis, color, scale=20):
-    point = origin + scale * axis
-    img = cv2.line(img, (int(origin[0]), int(origin[1])), (int(point[0]), int(point[1])), color, 2)
-    return img
-
+from utils import rotation_matrix_to_quaternion, draw_axis, FINGER_JOINTS_CONNECTION
 
 class ACRHandMocapNode(object):
     def __init__(self):
