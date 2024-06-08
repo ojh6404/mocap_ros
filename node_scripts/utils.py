@@ -1,6 +1,8 @@
 import rospkg
 import numpy as np
 import cv2
+import pyrender
+import trimesh
 
 # hand object detector and frankmocap paths
 FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
@@ -97,3 +99,101 @@ def load_hamer(checkpoint_path, config_path):
 
     model = HAMER.load_from_checkpoint(checkpoint_path, strict=False, cfg=model_cfg)
     return model, model_cfg
+
+
+
+class HamerRenderer(object):
+    def __init__(self, faces, cfg, width=640, height=480):
+        super(HamerRenderer, self).__init__()
+        self.width = width
+        self.height = height
+
+        self.focal_length = cfg.EXTRA.FOCAL_LENGTH / cfg.MODEL.IMAGE_SIZE * max(width, height)
+        self.camera_center = [self.width / 2., self.height / 2.]
+        self.camera_pose = np.eye(4)
+        self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1], zfar=1e12)
+
+        self.lights = self.create_raymond_lights()
+
+        self.faces = faces
+        self.faces_left = self.faces[:,[0,2,1]]
+
+        self.renderer = pyrender.OffscreenRenderer(viewport_width=width, viewport_height=height)
+
+    def vertices_to_trimesh(self, vertices, camera_translation, mesh_base_color=HAND_COLOR,
+                            rot_axis=[1,0,0], rot_angle=0, is_right=1):
+        vertex_colors = np.array([(*mesh_base_color, 1.0)] * vertices.shape[0])
+        if is_right:
+            mesh = trimesh.Trimesh(vertices.copy() + camera_translation, self.faces.copy(), vertex_colors=vertex_colors)
+        else:
+            mesh = trimesh.Trimesh(vertices.copy() + camera_translation, self.faces_left.copy(), vertex_colors=vertex_colors)
+
+        rot = trimesh.transformations.rotation_matrix(
+                np.radians(rot_angle), rot_axis)
+        mesh.apply_transform(rot)
+
+        rot = trimesh.transformations.rotation_matrix(
+            np.radians(180), [1, 0, 0])
+        mesh.apply_transform(rot)
+        return mesh
+
+    def render_rgba_multiple(
+            self,
+            vertices,
+            cam_t,
+            rot_axis=[1,0,0],
+            rot_angle=0,
+            is_right=None,
+        ):
+        # Create pyrender scene
+        scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0],
+                               ambient_light=(0.3, 0.3, 0.3))
+
+        # Add meshes to the scene
+        if is_right is None:
+            is_right = [1 for _ in range(len(vertices))]
+        mesh_list = [pyrender.Mesh.from_trimesh(self.vertices_to_trimesh(vvv, ttt.copy(), rot_axis=rot_axis, rot_angle=rot_angle, is_right=sss)) for vvv,ttt,sss in zip(vertices, cam_t, is_right)]
+        for i,mesh in enumerate(mesh_list):
+            scene.add(mesh, f'mesh_{i}')
+
+        # Create camera node and add it to pyRender scene
+        scene.add(self.camera, pose=self.camera_pose)
+
+        # Add lights to the scene
+        for node in self.lights:
+            scene.add_node(node)
+
+        rgba, _ = self.renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
+
+        return rgba
+
+    def create_raymond_lights(self):
+        """
+        Return raymond light nodes for the scene.
+        """
+        thetas = np.pi * np.array([1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0])
+        phis = np.pi * np.array([0.0, 2.0 / 3.0, 4.0 / 3.0])
+
+        nodes = []
+
+        for phi, theta in zip(phis, thetas):
+            xp = np.sin(theta) * np.cos(phi)
+            yp = np.sin(theta) * np.sin(phi)
+            zp = np.cos(theta)
+
+            z = np.array([xp, yp, zp])
+            z = z / np.linalg.norm(z)
+            x = np.array([-z[1], z[0], 0.0])
+            if np.linalg.norm(x) == 0:
+                x = np.array([1.0, 0.0, 0.0])
+            x = x / np.linalg.norm(x)
+            y = np.cross(z, x)
+
+            matrix = np.eye(4)
+            matrix[:3,:3] = np.c_[x,y,z]
+            nodes.append(pyrender.Node(
+                light=pyrender.DirectionalLight(color=np.ones(3), intensity=1.0),
+                matrix=matrix
+            ))
+
+        return nodes

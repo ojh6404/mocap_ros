@@ -21,7 +21,6 @@ from utils import (
     FINGER_JOINTS_CONNECTION,
     PALM_JOINTS,
     WEIGHTS,
-    HAND_COLOR,
     PASCAL_CLASSES,
     HAND_OBJECT_MODEL_PATH,
     FRANKMOCAP_PATH,
@@ -31,6 +30,7 @@ from utils import (
     FONT_PATH,
     HAMER_CHECKPOINT_PATH,
     HAMER_CONFIG_PATH,
+    HamerRenderer,
 )
 
 # hand object detector
@@ -51,7 +51,7 @@ from handmocap.hand_mocap_api import HandMocap as FrankMocap
 # hamer
 from hamer.utils import recursive_to
 from hamer.datasets.vitdet_dataset import ViTDetDataset
-from hamer.utils.renderer import cam_crop_to_full, RealtimeRenderer
+from hamer.utils.renderer import cam_crop_to_full
 
 np.random.seed(hand_object_detector_cfg.RNG_SEED)
 
@@ -216,19 +216,17 @@ class HandObjectDetectionNode(object):
 
                         # Render front view
                         if len(all_verts) > 0:
-                            misc_args = dict(
-                                mesh_base_color=HAND_COLOR,
-                                scene_bg_color=(1, 1, 1),
-                                focal_length=scaled_focal_length,
-                            )
+                            # misc_args = dict(
+                            #     focal_length=scaled_focal_length,
+                            # )
 
-                            cam_view = self.renderer.render_rgba_multiple(all_verts, cam_t=all_cam_t, is_right=all_right, **misc_args)
+                            rgba = self.renderer.render_rgba_multiple(all_verts, cam_t=all_cam_t, is_right=all_right)
+                            rgb = rgba[..., :3].astype(np.float32)
+                            alpha = rgba[..., 3].astype(np.float32) / 255.0
+
                             # Overlay image
-                            input_im = vis_im.astype(np.float32)[:,:,::-1]/255.0
-                            input_im = np.concatenate([input_im, np.ones_like(input_im[:,:,:1])], axis=2) # Add alpha channel
-                            input_im_overlay = input_im[:,:,:3] * (1-cam_view[:,:,3:]) + cam_view[:,:,:3] * cam_view[:,:,3:]
-                            vis_im = 255*input_im_overlay
-                            vis_im = cv2.cvtColor(vis_im.astype(np.uint8), cv2.COLOR_RGB2BGR)
+                            input_im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB) # BGR to RGB
+                            vis_im = (alpha[..., None] * rgb + (1 - alpha[..., None]) * input_im).astype(np.uint8)
 
                     # 2D keypoints
                     box_center = batch["box_center"].detach().cpu().numpy() # [N, 2]
@@ -382,7 +380,7 @@ class HandObjectDetectionNode(object):
                 self.hand_mocap.to(self.device)
                 self.hand_mocap.eval()
                 if self.visualize:
-                    self.renderer = RealtimeRenderer(640, 480, self.hamer_cfg, faces=self.hand_mocap.mano.faces)
+                    self.renderer = HamerRenderer(faces=self.hand_mocap.mano.faces, cfg=self.hamer_cfg, width=640, height=480)
             else:
                 raise ValueError("Invalid mocap model")
 
