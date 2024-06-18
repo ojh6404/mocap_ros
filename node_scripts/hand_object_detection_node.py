@@ -8,8 +8,9 @@ import numpy as np
 import cv2
 from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
-from sensor_msgs.msg import Image
-from geometry_msgs.msg import Pose, Point
+from image_geometry import PinholeCameraModel
+from sensor_msgs.msg import Image, CameraInfo
+from geometry_msgs.msg import Pose, Point, PoseArray
 from jsk_recognition_msgs.msg import Rect, Segment, HumanSkeleton
 from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
@@ -19,6 +20,7 @@ from utils import (
     draw_axis,
     load_hamer,
     FINGER_JOINTS_CONNECTION,
+    CONNECTION_NAMES,
     PALM_JOINTS,
     WEIGHTS,
     PASCAL_CLASSES,
@@ -61,6 +63,7 @@ class HandObjectDetectionNode(object):
         self.device = rospy.get_param("~device", "cuda:0")
         self.hand_threshold = rospy.get_param("~hand_threshold", 0.9)
         self.object_threshold = rospy.get_param("~object_threshold", 0.9)
+        self.margin = rospy.get_param("~margin", 10)
         self.with_handmocap = rospy.get_param("~with_handmocap", True)
         if self.with_handmocap:
             self.mocap_model = rospy.get_param("~mocap_model", "frankmocap") # frankmocap, hamer
@@ -69,19 +72,33 @@ class HandObjectDetectionNode(object):
             self.visualize = rospy.get_param("~visualize", True)
             if self.visualize:
                 self.render_type = rospy.get_param("~render_type", "opengl")  # pytorch3d, opendr, opengl
-        self.init_model()
         self.bridge = CvBridge()
+        self.camera_info = rospy.wait_for_message("~camera_info", CameraInfo)
+        self.camera_model = PinholeCameraModel()
+        self.camera_model.fromCameraInfo(self.camera_info)
+        self.img_size = (self.camera_info.width, self.camera_info.height)
+        self.init_model()
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
         self.pub_debug_image = rospy.Publisher("~debug_image", Image, queue_size=1)
         self.pub_hand_detections = rospy.Publisher("~hand_detections", HandDetectionArray, queue_size=1)
+        self.pub_keypoint_pose = rospy.Publisher("~pred_keypoints", PoseArray, queue_size=1)
 
     def callback_image(self, msg):
         im = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         obj_dets, hand_dets = self.get_detections(
             im, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
         )
+        # add margin to the bounding box
+        if hand_dets is not None:
+            for hand_det in hand_dets:
+                hand_det[0] = max(0, hand_det[0] - self.margin)
+                hand_det[1] = max(0, hand_det[1] - self.margin)
+                hand_det[2] = min(im.shape[1], hand_det[2] + self.margin)
+                hand_det[3] = min(im.shape[0], hand_det[3] + self.margin)
+
         detection_results = self.parse_result(obj_dets, hand_dets)
         detection_results.header = msg.header
+
 
         vis_im = self.get_vis(
             im, obj_dets, hand_dets, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
@@ -135,7 +152,7 @@ class HandObjectDetectionNode(object):
                                     x=joint_3d_coords[end][0], y=joint_3d_coords[end][1], z=joint_3d_coords[end][2]
                                 )
                                 hand_skeleton.bones.append(bone)
-                                hand_skeleton.bone_names.append(f"bone_{i}")
+                                hand_skeleton.bone_names.append(CONNECTION_NAMES[i])
 
                             hand_pose = Pose()
                             hand_pose.position.x = hand_origin[0]
@@ -183,50 +200,13 @@ class HandObjectDetectionNode(object):
                         batch = recursive_to(batch, self.device) # to device
                         with torch.no_grad():
                             out = self.hand_mocap(batch)
-                            # out keys
-                            # pred_cam, pred_mano_params, pred_cam_t, focal_length, pred_keypoints_3d, pred_keypoints_2d, pred_vertices
-
-                    if self.visualize:
-                        all_verts = []
-                        all_cam_t = []
-                        all_right = []
-
-                        multiplier = (2*batch['right']-1)
-                        pred_cam = out['pred_cam']
-                        pred_cam[:,1] = multiplier*pred_cam[:,1]
-                        box_center = batch["box_center"].float()
-                        box_size = batch["box_size"].float()
-                        img_size = batch["img_size"].float()
-                        multiplier = (2*batch['right']-1)
-                        scaled_focal_length = self.hamer_cfg.EXTRA.FOCAL_LENGTH / self.hamer_cfg.MODEL.IMAGE_SIZE * img_size.max()
-                        pred_cam_t_full = cam_crop_to_full(pred_cam, box_center, box_size, img_size, scaled_focal_length).detach().cpu().numpy()
-
-                        # Render the result
-                        batch_size = batch['img'].shape[0]
-                        for n in range(batch_size):
-                            # Add all verts and cams to list
-                            verts = out['pred_vertices'][n].detach().cpu().numpy()
-                            is_right = batch['right'][n].cpu().numpy()
-                            verts[:,0] = (2*is_right-1)*verts[:,0] # Flip x-axis
-                            cam_t = pred_cam_t_full[n]
-                            all_verts.append(verts)
-                            all_cam_t.append(cam_t)
-                            all_right.append(is_right)
-
-
-                        # Render front view
-                        if len(all_verts) > 0:
-                            # misc_args = dict(
-                            #     focal_length=scaled_focal_length,
-                            # )
-
-                            rgba = self.renderer.render_rgba_multiple(all_verts, cam_t=all_cam_t, is_right=all_right)
-                            rgb = rgba[..., :3].astype(np.float32)
-                            alpha = rgba[..., 3].astype(np.float32) / 255.0
-
-                            # Overlay image
-                            input_im = cv2.cvtColor(im, cv2.COLOR_BGR2RGB) # BGR to RGB
-                            vis_im = (alpha[..., None] * rgb + (1 - alpha[..., None]) * input_im).astype(np.uint8)
+                    pred_cam = out['pred_cam']
+                    pred_cam[:,1] *= (2*batch['right']-1)
+                    box_center = batch["box_center"].float()
+                    box_size = batch["box_size"].float()
+                    img_size = batch["img_size"].float()
+                    scaled_focal_length = self.hamer_cfg.EXTRA.FOCAL_LENGTH / self.hamer_cfg.MODEL.IMAGE_SIZE * img_size.max()
+                    pred_cam_t_full = cam_crop_to_full(pred_cam, box_center, box_size, img_size, scaled_focal_length).detach().cpu().numpy()
 
                     # 2D keypoints
                     box_center = batch["box_center"].detach().cpu().numpy() # [N, 2]
@@ -238,18 +218,20 @@ class HandObjectDetectionNode(object):
                     # 3D keypoints
                     pred_keypoints_3d = out['pred_keypoints_3d'].detach().cpu().numpy() # [N, 21, 3]
                     pred_keypoints_3d[:, :, 0] = (2*right[:, None]-1) * pred_keypoints_3d[:, :, 0]
+                    pred_keypoints_3d += pred_cam_t_full[:, None, :]
 
                     # hand pose
-                    hand_origin = np.sum(pred_keypoints_2d[:, PALM_JOINTS] * WEIGHTS[:, None], axis=1) # [N, 2]
+                    hand_origin = np.mean(pred_keypoints_2d, axis=1) # [N, 2]
                     hand_origin = np.concatenate([hand_origin, np.zeros((hand_origin.shape[0], 1))], axis=1) # [N, 3]
                     global_orient = out['pred_mano_params']['global_orient'].squeeze(1).detach().cpu().numpy() # [N, 3, 3]
+                    quats = []
 
                     for i, hand_id in enumerate(right): # for each hand
-                        assert detection_results.detections[i].hand == "right_hand" if hand_id == 1 else "left_hand"
+                        assert detection_results.detections[i].hand == "right_hand" if hand_id == 1 else "left_hand", "Hand ID and hand detection mismatch"
                         hand_pose = Pose()
-                        hand_pose.position.x = hand_origin[i][0]
-                        hand_pose.position.y = hand_origin[i][1]
-                        hand_pose.position.z = 0  # cause it's working in 2D
+                        hand_pose.position.x = pred_keypoints_3d[i][0][0] # wrist
+                        hand_pose.position.y = pred_keypoints_3d[i][0][1]
+                        hand_pose.position.z = pred_keypoints_3d[i][0][2]
                         rotation = global_orient[i]
                         if hand_id == 0:
                             rotation[1::3] *= -1
@@ -268,6 +250,7 @@ class HandObjectDetectionNode(object):
                             z_axis = np.array([1, 0, 0])
                             rotated_result = R.from_rotvec(np.pi * np.array([0, 0, 1])) * R.from_quat(quat) # rotate 180 degree around x-axis
                             quat = rotated_result.as_quat()  # [w, x, y, z]
+                        quats.append(quat)
                         hand_pose.orientation.x = quat[1]
                         hand_pose.orientation.y = quat[2]
                         hand_pose.orientation.z = quat[3]
@@ -293,10 +276,56 @@ class HandObjectDetectionNode(object):
                                 x=pred_keypoints_3d[i][end][0], y=pred_keypoints_3d[i][end][1], z=pred_keypoints_3d[i][end][2]
                             )
                             hand_skeleton.bones.append(bone)
-                            hand_skeleton.bone_names.append(f"bone_{j}")
+                            hand_skeleton.bone_names.append(CONNECTION_NAMES[j])
 
                         detection_results.detections[i].pose = hand_pose
                         detection_results.detections[i].skeleton = hand_skeleton
+
+                    if self.visualize:
+                        all_verts = []
+                        all_cam_t = []
+                        all_right = []
+
+                        # Render the result
+                        batch_size = batch['img'].shape[0]
+                        for n in range(batch_size):
+                            # Add all verts and cams to list
+                            verts = out['pred_vertices'][n].detach().cpu().numpy()
+                            is_right = batch['right'][n].cpu().numpy()
+                            verts[:,0] = (2*is_right-1)*verts[:,0] # Flip x-axis
+                            cam_t = pred_cam_t_full[n]
+                            all_verts.append(verts)
+                            all_cam_t.append(cam_t)
+                            all_right.append(is_right)
+
+                        # Render front view
+                        if len(all_verts) > 0:
+                            rgba, _ = self.renderer.render_rgba_multiple(all_verts, cam_t=all_cam_t, is_right=all_right)
+                            rgb = rgba[..., :3].astype(np.float32)
+                            alpha = rgba[..., 3].astype(np.float32) / 255.0
+                            vis_im = (alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(im, cv2.COLOR_BGR2RGB)).astype(np.uint8)
+
+                    # project 3d keypoints to 2d and draw
+                    for i, keypoints in enumerate(pred_keypoints_2d):
+                        for j, keypoint in enumerate(keypoints):
+                            point_x, point_y = self.camera_model.project3dToPixel(pred_keypoints_3d[i][j])
+                            cv2.circle(vis_im, (int(point_x), int(point_y)), 5, (0, 255, 0), -1)
+
+                    # publish 3d keypoints
+                    pose_array = PoseArray()
+                    pose_array.header = msg.header
+                    for i, keypoints in enumerate(pred_keypoints_3d):
+                        for j, keypoint in enumerate(keypoints):
+                            pose = Pose()
+                            pose.position.x = keypoint[0]
+                            pose.position.y = keypoint[1]
+                            pose.position.z = keypoint[2]
+                            pose.orientation.x = quats[i][1]
+                            pose.orientation.y = quats[i][2]
+                            pose.orientation.z = quats[i][3]
+                            pose.orientation.w = quats[i][0]
+                            pose_array.poses.append(pose)
+                    self.pub_keypoint_pose.publish(pose_array)
             else:
                 raise ValueError("Invalid mocap model")
         vis_msg = self.bridge.cv2_to_imgmsg(vis_im.astype(np.uint8), encoding="rgb8")
@@ -376,7 +405,7 @@ class HandObjectDetectionNode(object):
                         from renderer.visualizer import Visualizer
                     self.renderer = Visualizer(self.render_type)
             elif self.mocap_model == "hamer":
-                self.hand_mocap, self.hamer_cfg = load_hamer(HAMER_CHECKPOINT_PATH, HAMER_CONFIG_PATH)
+                self.hand_mocap, self.hamer_cfg = load_hamer(HAMER_CHECKPOINT_PATH, HAMER_CONFIG_PATH, img_size=self.img_size, focal_length=self.camera_model.fx())
                 self.hand_mocap.to(self.device)
                 self.hand_mocap.eval()
                 if self.visualize:

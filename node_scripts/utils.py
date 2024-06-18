@@ -20,6 +20,13 @@ HAMER_CONFIG_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/model_config.yaml"
 HAND_COLOR = (0.65098039,  0.74117647,  0.85882353)
 
 # hand constants
+FINGER_KEPOINT_NAMES = [
+    "wrist", "thumb0", "thumb1", "thumb2", "thumb3",
+    "index0", "index1", "index2", "index3",
+    "middle0", "middle1", "middle2", "middle3",
+    "ring0", "ring1", "ring2", "ring3",
+    "pinky0", "pinky1", "pinky2", "pinky3",
+]
 FINGER_JOINTS_CONNECTION = [
     (0, 1),  # wrist -> thumb0
     (1, 2),  # thumb0 -> thumb1
@@ -42,6 +49,14 @@ FINGER_JOINTS_CONNECTION = [
     (18, 19),  # pinky1 -> pinky2
     (19, 20),  # pinky2 -> pinky3
 ]
+CONNECTION_NAMES = [
+    "wrist->thumb0", "thumb0->thumb1", "thumb1->thumb2", "thumb2->thumb3",
+    "wrist->index0", "index0->index1", "index1->index2", "index2->index3",
+    "wrist->middle0", "middle0->middle1", "middle1->middle2", "middle2->middle3",
+    "wrist->ring0", "ring0->ring1", "ring1->ring2", "ring2->ring3",
+    "wrist->pinky0", "pinky0->pinky1", "pinky1->pinky2", "pinky2->pinky3",
+]
+
 
 # for calculating hand origin
 PALM_JOINTS = [0, 2, 5, 9, 13, 17]
@@ -72,7 +87,7 @@ def draw_axis(img, origin, axis, color, scale=20):
     return img
 
 
-def load_hamer(checkpoint_path, config_path):
+def load_hamer(checkpoint_path, config_path, img_size, focal_length):
     from hamer.configs import get_config
     from hamer.models import HAMER
 
@@ -80,6 +95,7 @@ def load_hamer(checkpoint_path, config_path):
     model_cfg.defrost()
     model_cfg.MANO.MODEL_PATH = HAMER_ROOT + "/_DATA/data/mano"
     model_cfg.MANO.MEAN_PARAMS = HAMER_ROOT + "/_DATA/data/mano_mean_params.npz"
+    model_cfg.EXTRA.FOCAL_LENGTH = int(focal_length * model_cfg.MODEL.IMAGE_SIZE / max(img_size))
     model_cfg.freeze()
 
     # Override some config values, to crop bbox correctly
@@ -111,7 +127,8 @@ class HamerRenderer(object):
         self.focal_length = cfg.EXTRA.FOCAL_LENGTH / cfg.MODEL.IMAGE_SIZE * max(width, height)
         self.camera_center = [self.width / 2., self.height / 2.]
         self.camera_pose = np.eye(4)
-        self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1], zfar=1e12)
+        # self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1], zfar=1e12)
+        self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1])
 
         self.lights = self.create_raymond_lights()
 
@@ -144,6 +161,7 @@ class HamerRenderer(object):
             rot_axis=[1,0,0],
             rot_angle=0,
             is_right=None,
+            keypoints=None,
         ):
         # Create pyrender scene
         scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0],
@@ -163,9 +181,9 @@ class HamerRenderer(object):
         for node in self.lights:
             scene.add_node(node)
 
-        rgba, _ = self.renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
+        rgba, depth = self.renderer.render(scene, flags=pyrender.RenderFlags.RGBA)
 
-        return rgba
+        return rgba, depth
 
     def create_raymond_lights(self):
         """
@@ -197,3 +215,16 @@ class HamerRenderer(object):
             ))
 
         return nodes
+
+def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000.):
+    # Convert cam_bbox to full image
+    img_w, img_h = img_size
+    cx, cy, b = box_center[:, 0], box_center[:, 1], box_size
+    w_2, h_2 = img_w / 2., img_h / 2.
+    bs = b * cam_bbox[:, 0] + 1e-9
+    tz = 2 * focal_length / bs
+    tx = (2 * (cx - w_2) / bs) + cam_bbox[:, 1]
+    ty = (2 * (cy - h_2) / bs) + cam_bbox[:, 2]
+    # full_cam = torch.stack([tx, ty, tz], dim=-1)
+    full_cam = np.stack([tx, ty, tz], axis=-1)
+    return full_cam

@@ -16,6 +16,7 @@
   <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
   <arg name="slop" default="0.15" />
   <arg name="apply_filter" default="true" />
+  <arg name="margin" default="10" /> <!-- cpu or cuda -->
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
   <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
@@ -40,6 +41,7 @@
         pkg="hand_object_detection_ros" type="hand_object_detection_node.py"
         output="screen" >
     <remap from="~input_image" to="$(arg _input_image)" />
+    <remap from="~camera_info" to="$(arg camera_info)" />
     <rosparam subst_value="true" >
         device: $(arg device)
         hand_threshold: $(arg hand_threshold)
@@ -49,6 +51,7 @@
         visualize: $(arg visualize)
         render_type: $(arg render_type)
         rescale_factor: $(arg rescale_factor)
+        margin: $(arg margin)
     </rosparam>
   </node>
   <!-- hand 3d track node node -->

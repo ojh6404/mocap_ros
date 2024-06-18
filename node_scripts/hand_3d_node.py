@@ -13,6 +13,8 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 from scipy.signal import savgol_filter
 
+from utils import FINGER_KEPOINT_NAMES
+
 
 class Hand3DNode(object):
     def __init__(self):
@@ -37,7 +39,9 @@ class Hand3DNode(object):
         self.ts.registerCallback(self.callback)
 
         # Publisher for Pose
-        self.pose_array_pub = rospy.Publisher("~hand_pose", PoseArray, queue_size=10)
+        self.pose_array_pub = rospy.Publisher("~hand_pose", PoseArray, queue_size=1)
+        self.hand_detections_pub = rospy.Publisher("~hand_detections", HandDetectionArray, queue_size=1)
+        self.keypoints_pub = rospy.Publisher("~hand_keypoints", PoseArray, queue_size=1)
 
     def apply_savgol_filter(self, data):
         if len(data) < self.window_size:
@@ -59,13 +63,33 @@ class Hand3DNode(object):
         except CvBridgeError as e:
             rospy.logerr(e)
 
-        for detection in hand_data.detections:
-            # Get the depth value at the 2D point
-            point_2d = (detection.pose.position.x, detection.pose.position.y)
-            # clip the point to the image size
+        # Calibrate HandDetectionArray message
+        hand_detections_msg = HandDetectionArray()
+        hand_detections_msg.header.frame_id = camera_frame
+        hand_detections_msg.header.stamp = rospy.Time.now()
+        hand_detections_msg.detections = hand_data.detections
+
+        pose_array_msg = PoseArray()
+        pose_array_msg.header.frame_id = camera_frame
+        pose_array_msg.header.stamp = rospy.Time.now()
+
+        # Calibrate PoseArray message
+        keypoints_msg = PoseArray()
+        keypoints_msg.header.frame_id = camera_frame
+        keypoints_msg.header.stamp = rospy.Time.now()
+
+
+        for detection in hand_detections_msg.detections:
+            point_3d = (
+                detection.pose.position.x,
+                detection.pose.position.y,
+                detection.pose.position.z,
+            )
+            point_2d = camera_model.project3dToPixel(point_3d)
+            # clip
             point_2d = (
-                min(max(detection.pose.position.x, 0), cv_image.shape[1] - 1),
-                min(max(detection.pose.position.y, 0), cv_image.shape[0] - 1),
+                min(max(point_2d[0], 0), cv_image.shape[1] - 1),
+                min(max(point_2d[1], 0), cv_image.shape[0] - 1),
             )
             depth = cv_image[int(point_2d[1]), int(point_2d[0])]
             if np.isnan(depth) or (depth == 0.0):
@@ -86,20 +110,41 @@ class Hand3DNode(object):
 
             try:
                 # Create PoseArray message and publish it
-                pose_msg = Pose()
+                pose_msg = Pose() # wrist pose
                 pose_msg.position.x = x_cam * self.scale
                 pose_msg.position.y = y_cam * self.scale
                 pose_msg.position.z = z_cam * self.scale
                 pose_msg.orientation = detection.pose.orientation
-
-                pose_array_msg = PoseArray()
-                pose_array_msg.header.frame_id = camera_frame
-                pose_array_msg.header.stamp = rospy.Time.now()
                 pose_array_msg.poses.append(pose_msg)
 
-                self.pose_array_pub.publish(pose_array_msg)
+                # Create PoseArray message and publish it
+                keypoints_msg.poses.append(pose_msg) # wrist keypoint
+                for i, bone in enumerate(detection.skeleton.bones):
+                    keypoint = Pose()
+                    keypoint.position.x = bone.end_point.x
+                    keypoint.position.y = bone.end_point.y
+                    keypoint.position.z = bone.end_point.z
+                    keypoint.orientation = detection.pose.orientation
+                    keypoints_msg.poses.append(keypoint)
+                    # Broadcast keypoints in the camera frame
+                    self.tf_broadcaster.sendTransform(
+                        (keypoint.position.x, keypoint.position.y, keypoint.position.z),
+                        (keypoint.orientation.x, keypoint.orientation.y, keypoint.orientation.z, keypoint.orientation.w),
+                        rospy.Time.now(),
+                        detection.hand + "_" + FINGER_KEPOINT_NAMES[i+1],
+                        camera_frame,
+                    )
 
-                # Broadcast the transform
+                # calibrate skeleton keypoints with wrist pose
+                for bone in detection.skeleton.bones:
+                    bone.start_point.x += pose_msg.position.x - detection.pose.position.x
+                    bone.start_point.y += pose_msg.position.y - detection.pose.position.y
+                    bone.start_point.z += pose_msg.position.z - detection.pose.position.z
+                    bone.end_point.x += pose_msg.position.x - detection.pose.position.x
+                    bone.end_point.y += pose_msg.position.y - detection.pose.position.y
+                    bone.end_point.z += pose_msg.position.z - detection.pose.position.z
+
+                # Broadcast hand pose in the camera frame
                 self.tf_broadcaster.sendTransform(
                     (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
                     (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
@@ -108,8 +153,14 @@ class Hand3DNode(object):
                     camera_frame,
                 )
 
+
+
+
             except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
                 rospy.logerr(e)
+        self.hand_detections_pub.publish(hand_detections_msg)
+        self.pose_array_pub.publish(pose_array_msg)
+        self.keypoints_pub.publish(keypoints_msg)
 
 
 if __name__ == "__main__":
