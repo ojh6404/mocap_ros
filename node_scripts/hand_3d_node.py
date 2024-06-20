@@ -13,7 +13,7 @@ from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 from scipy.signal import savgol_filter
 
-from utils import FINGER_KEPOINT_NAMES
+from hand_object_detection_ros.utils import FINGER_KEPOINT_NAMES
 
 
 class Hand3DNode(object):

@@ -9,6 +9,8 @@ find_package(catkin REQUIRED COMPONENTS
   message_generation
 )
 
+catkin_python_setup()
+
 add_message_files(
     FILES
     HandDetection.msg
@@ -20,6 +22,7 @@ generate_messages(
     std_msgs
     jsk_recognition_msgs
 )
+
 
 catkin_package(
   CATKIN_DEPENDS
