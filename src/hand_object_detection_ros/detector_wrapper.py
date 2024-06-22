@@ -8,8 +8,7 @@ import cv2
 from jsk_recognition_msgs.msg import Rect
 from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
 
-# utils and constants
-from utils import (
+from hand_object_detection_ros.utils import (
     PASCAL_CLASSES,
     HAND_OBJECT_MODEL_PATH,
     CHECKPOINT_FILE,
@@ -26,16 +25,20 @@ from model.roi_layers import nms
 from model.utils.net_utils import vis_detections_filtered_objects, vis_detections_filtered_objects_PIL, filter_object
 from model.faster_rcnn.resnet import resnet
 
+
 np.random.seed(hand_object_detector_cfg.RNG_SEED)
 
 class HandObjectDetectionModel(object):
     def __init__(
         self,
-        device="cuda:0",
-        hand_threshold=0.9,
-        object_threshold=0.9,
-        margin=10,
+        detector_config:dict,
+        device:str="cuda:0",
+        hand_threshold:float=0.9,
+        object_threshold:float=0.9,
+        margin:int=10,
     ):
+        self.detector_config = detector_config
+        self.detector_model = detector_config["detector_model"]
         self.device = device
         self.hand_threshold = hand_threshold
         self.object_threshold = object_threshold
@@ -44,24 +47,107 @@ class HandObjectDetectionModel(object):
 
     def predict(self, im):
         # im : BGR image
-        obj_dets, hand_dets = self.get_detections(
-            im, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
-        )
+        if self.detector_model == "hand_object_detector":
+            obj_dets, hand_dets = self.get_detections(
+                im, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
+            )
 
-        # add margin to the bounding box
-        if hand_dets is not None:
-            for hand_det in hand_dets:
-                hand_det[0] = max(0, hand_det[0] - self.margin)
-                hand_det[1] = max(0, hand_det[1] - self.margin)
-                hand_det[2] = min(im.shape[1], hand_det[2] + self.margin)
-                hand_det[3] = min(im.shape[0], hand_det[3] + self.margin)
+            # add margin to the bounding box
+            if hand_dets is not None:
+                for hand_det in hand_dets:
+                    hand_det[0] = max(0, hand_det[0] - self.margin)
+                    hand_det[1] = max(0, hand_det[1] - self.margin)
+                    hand_det[2] = min(im.shape[1], hand_det[2] + self.margin)
+                    hand_det[3] = min(im.shape[0], hand_det[3] + self.margin)
 
-        detection_results = self.parse_result(obj_dets, hand_dets)
-        vis_im = self.get_vis(
-            im, obj_dets, hand_dets, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
-        )
-        return detection_results, vis_im
+            detection_results = self.parse_result(obj_dets, hand_dets)
+            vis_im = self.get_vis(
+                im, obj_dets, hand_dets, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold
+            )
+            return detection_results, vis_im
+        elif self.detector_model == "mediapipe":
+            hand_detections = HandDetectionArray()
+            results = self.mp_hands.process(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
+            if results.multi_hand_landmarks:
+                for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
+                                                results.multi_handedness):
+                    hand_detection = HandDetection()
 
+                    # flip image
+                    hand_detection.hand = "left_hand" if handedness.classification[0].label == "Right" else "right_hand"
+                    hand_detection.score = handedness.classification[0].score
+                    hand_detection.state = "N"
+                    image_width, image_height = im.shape[1], im.shape[0]
+
+                    landmark_array = np.empty((0, 2), int)
+
+                    for _, landmark in enumerate(hand_landmarks.landmark):
+                        landmark_x = min(int(landmark.x * image_width), image_width - 1)
+                        landmark_y = min(int(landmark.y * image_height), image_height - 1)
+
+                        landmark_point = [np.array((landmark_x, landmark_y))]
+
+                        landmark_array = np.append(landmark_array, landmark_point, axis=0)
+
+                    x, y, w, h = cv2.boundingRect(landmark_array)
+
+                    # add margin to the bounding box
+                    x1 = max(0, x - self.margin)
+                    y1 = max(0, y - self.margin)
+                    x2 = min(im.shape[1], x + w + self.margin)
+                    y2 = min(im.shape[0], y + h + self.margin)
+                    w = x2 - x1
+                    h = y2 - y1
+
+                    hand_detection.hand_rect = Rect(x=x1, y=y1, width=w, height=h)
+                    hand_detections.detections.append(hand_detection)
+
+                    # draw hand bbox
+                    cv2.rectangle(im, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    # put text left of right
+                    cv2.putText(im, hand_detection.hand, (x1, y1), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
+            return hand_detections, im
+
+
+    def init_model(self):
+        if self.detector_model == "hand_object_detector":
+            hand_object_detector_cfg.USE_GPU_NMS = True if self.device.startswith("cuda") else False
+            hand_object_detector_cfg.CUDA = True if self.device.startswith("cuda") else False
+
+            self.fasterRCNN = resnet(PASCAL_CLASSES, 101, pretrained=False)
+            self.fasterRCNN.create_architecture()
+            checkpoint = torch.load(CHECKPOINT_FILE, map_location=self.device)
+
+            self.fasterRCNN.load_state_dict(checkpoint["model"])
+            self.fasterRCNN.to(self.device)
+            self.fasterRCNN.eval()
+
+            if "pooling_mode" in checkpoint.keys():
+                hand_object_detector_cfg.POOLING_MODE = checkpoint["pooling_mode"]
+
+            if hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
+                hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_MEANS = torch.tensor(
+                    hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_MEANS, dtype=torch.float, device=self.device
+                )
+                hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_STDS = torch.tensor(
+                    hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_STDS, dtype=torch.float, device=self.device
+                )
+
+            # initilize the tensor holder here.
+            self._im_data = torch.FloatTensor(1).to(self.device)
+            self._im_info = torch.FloatTensor(1).to(self.device)
+            self._num_boxes = torch.LongTensor(1).to(self.device)
+            self._gt_boxes = torch.FloatTensor(1).to(self.device)
+            self._box_info = torch.FloatTensor(1)
+        elif self.detector_model == "mediapipe":
+            import mediapipe as mp
+            self.mp_hands = mp.solutions.hands.Hands(
+                static_image_mode=False,
+                min_detection_confidence=self.hand_threshold,
+                min_tracking_confidence=0.5,
+                max_num_hands=2
+            )
 
     def parse_result(self, obj_dets, hand_dets):
         hand_detections = HandDetectionArray()
@@ -95,35 +181,6 @@ class HandObjectDetectionModel(object):
         state = detection[5].astype(np.int32)
         return state
 
-    def init_model(self):
-        hand_object_detector_cfg.USE_GPU_NMS = True if self.device.startswith("cuda") else False
-        hand_object_detector_cfg.CUDA = True if self.device.startswith("cuda") else False
-
-        self.fasterRCNN = resnet(PASCAL_CLASSES, 101, pretrained=False)
-        self.fasterRCNN.create_architecture()
-        checkpoint = torch.load(CHECKPOINT_FILE, map_location=self.device)
-
-        self.fasterRCNN.load_state_dict(checkpoint["model"])
-        self.fasterRCNN.to(self.device)
-        self.fasterRCNN.eval()
-
-        if "pooling_mode" in checkpoint.keys():
-            hand_object_detector_cfg.POOLING_MODE = checkpoint["pooling_mode"]
-
-        if hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_TARGETS_PRECOMPUTED:
-            hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_MEANS = torch.tensor(
-                hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_MEANS, dtype=torch.float, device=self.device
-            )
-            hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_STDS = torch.tensor(
-                hand_object_detector_cfg.TRAIN.BBOX_NORMALIZE_STDS, dtype=torch.float, device=self.device
-            )
-
-        # initilize the tensor holder here.
-        self._im_data = torch.FloatTensor(1).to(self.device)
-        self._im_info = torch.FloatTensor(1).to(self.device)
-        self._num_boxes = torch.LongTensor(1).to(self.device)
-        self._gt_boxes = torch.FloatTensor(1).to(self.device)
-        self._box_info = torch.FloatTensor(1)
 
     @torch.no_grad()
     def inference_step(self, im_blob, im_scales):

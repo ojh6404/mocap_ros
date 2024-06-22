@@ -11,7 +11,6 @@ from image_geometry import PinholeCameraModel
 from hand_object_detection_ros.msg import HandDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
-from scipy.signal import savgol_filter
 
 from hand_object_detection_ros.utils import FINGER_KEPOINT_NAMES
 
@@ -23,11 +22,6 @@ class Hand3DNode(object):
         self.tf_broadcaster = tf.TransformBroadcaster()
         self.scale = rospy.get_param("~scale", 0.001)
         self.slop = rospy.get_param("~slop", 0.15)
-        self.apply_filter = rospy.get_param("~apply_filter", False)
-        if self.apply_filter:
-            self.window_size = rospy.get_param("~window_size", 5)
-            self.poly_order = rospy.get_param("~poly_order", 3)
-            self.data_queue = []
 
         # Subscribe to the camera info and depth image topics
         self.info_sub = mf.Subscriber("~camera_info", CameraInfo, buff_size=2**24)
@@ -43,12 +37,6 @@ class Hand3DNode(object):
         self.hand_detections_pub = rospy.Publisher("~hand_detections", HandDetectionArray, queue_size=1)
         self.keypoints_pub = rospy.Publisher("~hand_keypoints", PoseArray, queue_size=1)
 
-    def apply_savgol_filter(self, data):
-        if len(data) < self.window_size:
-            return data[-1]
-        else:
-            filtered_data = savgol_filter(np.array(data), self.window_size, self.poly_order)
-            return filtered_data[-1]
 
 
     def callback(self, cam_info_data, depth_data, hand_data):
@@ -100,14 +88,6 @@ class Hand3DNode(object):
             y_cam = (point_2d[1] - camera_model.cy()) * depth / camera_model.fy()
             z_cam = depth
 
-            if self.apply_filter:
-                self.data_queue.append([x_cam, y_cam, z_cam])
-                if len(self.data_queue) > self.window_size:
-                    self.data_queue.pop(0)
-                x_cam = self.apply_savgol_filter([x[0] for x in self.data_queue])
-                y_cam = self.apply_savgol_filter([x[1] for x in self.data_queue])
-                z_cam = self.apply_savgol_filter([x[2] for x in self.data_queue])
-
             try:
                 # Create PoseArray message and publish it
                 pose_msg = Pose() # wrist pose
@@ -116,9 +96,19 @@ class Hand3DNode(object):
                 pose_msg.position.z = z_cam * self.scale
                 pose_msg.orientation = detection.pose.orientation
                 pose_array_msg.poses.append(pose_msg)
-
                 # Create PoseArray message and publish it
                 keypoints_msg.poses.append(pose_msg) # wrist keypoint
+
+                # Broadcast hand pose in the camera frame
+                self.tf_broadcaster.sendTransform(
+                    (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
+                    (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
+                    rospy.Time.now(),
+                    detection.hand,
+                    camera_frame,
+                )
+
+                # Create PoseArray message and publish it
                 for i, bone in enumerate(detection.skeleton.bones):
                     keypoint = Pose()
                     keypoint.position.x = bone.end_point.x
@@ -144,14 +134,6 @@ class Hand3DNode(object):
                     bone.end_point.y += pose_msg.position.y - detection.pose.position.y
                     bone.end_point.z += pose_msg.position.z - detection.pose.position.z
 
-                # Broadcast hand pose in the camera frame
-                self.tf_broadcaster.sendTransform(
-                    (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
-                    (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
-                    rospy.Time.now(),
-                    detection.hand,
-                    camera_frame,
-                )
 
 
 

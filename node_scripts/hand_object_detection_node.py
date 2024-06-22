@@ -3,13 +3,10 @@
 
 import rospy
 import numpy as np
-import cv2
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import Pose, Point, PoseArray
-from jsk_recognition_msgs.msg import Rect, Segment, HumanSkeleton
-from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
+from hand_object_detection_ros.msg import HandDetectionArray
 
 from hand_object_detection_ros.detector_wrapper import HandObjectDetectionModel
 from hand_object_detection_ros.mocap_wrapper import MocapModel
@@ -25,6 +22,10 @@ class HandObjectDetectionNode(object):
         self.camera_model = PinholeCameraModel()
         self.camera_model.fromCameraInfo(self.camera_info)
         self.img_size = (self.camera_info.width, self.camera_info.height)
+
+        self.detector_config = dict()
+        self.detector_config["detector_model"] = rospy.get_param("~detector_model", "hand_object_detector")
+
         self.with_handmocap = rospy.get_param("~with_handmocap", True)
         if self.with_handmocap:
             self.mocap_model = rospy.get_param("~mocap_model", "frankmocap") # frankmocap, hamer
@@ -46,8 +47,13 @@ class HandObjectDetectionNode(object):
 
     def init_model(self):
         self.hand_object_detection_model = HandObjectDetectionModel(
-            device=self.device, hand_threshold=self.hand_threshold, object_threshold=self.object_threshold, margin=self.margin
+            detector_config=self.detector_config,
+            device=self.device,
+            hand_threshold=self.hand_threshold,
+            object_threshold=self.object_threshold,
+            margin=self.margin
         )
+
 
         if self.with_handmocap:
             self.hand_mocap = MocapModel(
@@ -67,8 +73,8 @@ class HandObjectDetectionNode(object):
 
         vis_msg = self.bridge.cv2_to_imgmsg(vis_im.astype(np.uint8), encoding="rgb8")
         vis_msg.header = msg.header
-        self.pub_hand_detections.publish(detection_results)
         self.pub_debug_image.publish(vis_msg)
+        self.pub_hand_detections.publish(detection_results)
 
 
 

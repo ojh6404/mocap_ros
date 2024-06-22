@@ -8,6 +8,7 @@
   <arg name="hand_threshold" default="0.9" />
   <arg name="object_threshold" default="0.9" />
   <arg name="with_handmocap" default="true" />
+  <arg name="detector_model" default="hand_object_detector" />  <!-- hand_object_detector, mediapipe, ... -->
   <arg name="mocap_model" default="frankmocap" />  <!-- frankmocap, hamer -->
   <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
   <arg name="render_type" default="opengl" />  <!-- opengl or pytorch3d -->
@@ -47,6 +48,7 @@
         hand_threshold: $(arg hand_threshold)
         object_threshold: $(arg object_threshold)
         with_handmocap: $(arg with_handmocap)
+        detector_model: $(arg detector_model)
         mocap_model: $(arg mocap_model)
         visualize: $(arg visualize)
         render_type: $(arg render_type)
