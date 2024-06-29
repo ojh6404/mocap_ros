@@ -1,6 +1,6 @@
 # hand_object_detection_ros 
 
-ROS1 wrapper package for hand detection and mocap with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git) and [frankmocap](https://github.com/facebookresearch/frankmocap.git).
+ROS1 wrapper package for hand detection and mocap with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git), [frankmocap](https://github.com/facebookresearch/frankmocap.git) and [HaMeR](https://github.com/geopavlakos/hamer.git).
 
 ![Alt text](asset/hand_object_detection_example.gif)
 
@@ -9,13 +9,13 @@ ROS1 wrapper package for hand detection and mocap with [hand_object_detector](ht
 ### Prerequisite
 This package is build upon
 - ROS1 (Noetic)
-- `torch==1.12` and `cuda-11.3`
+- `torch` and `cuda`
 - (Optional) docker and nvidia-container-toolkit (for environment safety)
 
 ### Build package
 
 #### on your workspace
-It is better to use docker environment cause it needs specific cuda version and build environment. But you can build it directly if you want provided that you use `cuda-11.3` and `torch==1.12`. Instruction's are below.
+It is better to use docker environment cause it needs specific cuda version and build environment.
 ```bash
 mkdir -p ~/ros/catkin_ws/src && cd ~/ros/catkin_ws/src
 git clone https://github.com/ojh6404/hand_object_detection_ros.git
