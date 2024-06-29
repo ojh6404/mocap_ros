@@ -3,11 +3,12 @@ import numpy as np
 import cv2
 import pyrender
 import trimesh
+from scipy.spatial.transform import Rotation as R
 
 # hand object detector and frankmocap paths
 FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
-HAND_OBJECT_MODEL_PATH = FRANKMOCAP_PATH + "/detectors/hand_object_detector"
-FONT_PATH = HAND_OBJECT_MODEL_PATH + "/lib/model/utils/times_b.ttf"
+HAND_OBJECT_MODEL_PATH = FRANKMOCAP_PATH + "/detectors/hand_object_detector/lib"
+FONT_PATH = HAND_OBJECT_MODEL_PATH + "/model/utils/times_b.ttf"
 CHECKPOINT_FILE = FRANKMOCAP_PATH + "/extra_data/hand_module/hand_detector/faster_rcnn_1_8_132028.pth"
 FRANKMOCAP_CHECKPOINT = FRANKMOCAP_PATH + "/extra_data/hand_module/pretrained_weights/pose_shape_best.pth"
 SMPL_DIR = FRANKMOCAP_PATH + "/extra_data/smpl/"
@@ -62,6 +63,12 @@ CONNECTION_NAMES = [
 PALM_JOINTS = [0, 2, 5, 9, 13, 17]
 WEIGHTS = np.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
 
+def axes_to_quaternion(x_axis, y_axis, z_axis):
+    rotation_matrix = np.column_stack((x_axis, y_axis, z_axis))
+    r = R.from_matrix(rotation_matrix)
+    quaternion = r.as_quat()
+    quaternion = [quaternion[3], quaternion[0], quaternion[1], quaternion[2]]
+    return quaternion
 
 def rotation_matrix_to_quaternion(R):
     """Convert a rotation matrix to a quaternion.
@@ -228,3 +235,4 @@ def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000
     # full_cam = torch.stack([tx, ty, tz], dim=-1)
     full_cam = np.stack([tx, ty, tz], axis=-1)
     return full_cam
+
