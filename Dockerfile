@@ -1,4 +1,4 @@
-FROM nvidia/cuda:11.3.1-devel-ubuntu20.04
+FROM nvidia/cuda:12.1.1-cudnn8-devel-ubuntu20.04
 ENV DEBIAN_FRONTEND=noninteractive
 RUN rm /etc/apt/sources.list.d/cuda.list
 
@@ -89,7 +89,7 @@ SHELL ["/bin/bash", "-c"]
 
 ENV AM_I_DOCKER=True
 ENV BUILD_WITH_CUDA=True
-ENV CUDA_HOME="/usr/local/cuda-11.3"
+ENV CUDA_HOME="/usr/local/cuda"
 # trick for cuda because cuda is not available when building docker image
 ENV FORCE_CUDA="1" TORCH_CUDA_ARCH_LIST="5.0;6.0;6.1;7.0;7.5;8.0;8.6+PTX"
 # use gdown to download models from google drive
