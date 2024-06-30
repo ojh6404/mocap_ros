@@ -21,25 +21,27 @@ class DetectionNode(object):
         self.img_size = (self.camera_info.width, self.camera_info.height)
 
         # Detector
-        self.detector = rospy.get_param("~detector_model", "hand_object_detector") # hand_object_detector, mediapipe_hand
+        self.detector = rospy.get_param(
+            "~detector_model", "hand_object_detector"
+        )  # hand_object_detector, mediapipe_hand
         if self.detector == "hand_object_detector":
             self.detector_config = {
-                'threshold': rospy.get_param("~threshold", 0.9),
-                'object_threshold': rospy.get_param("~object_threshold", 0.9),
-                'margin': rospy.get_param("~margin", 10),
-                'device': self.device,
+                "threshold": rospy.get_param("~threshold", 0.9),
+                "object_threshold": rospy.get_param("~object_threshold", 0.9),
+                "margin": rospy.get_param("~margin", 10),
+                "device": self.device,
             }
         elif self.detector == "mediapipe_hand":
             self.detector_config = {
-                'threshold': rospy.get_param("~threshold", 0.9),
-                'margin': rospy.get_param("~margin", 10),
-                'device': self.device,
+                "threshold": rospy.get_param("~threshold", 0.9),
+                "margin": rospy.get_param("~margin", 10),
+                "device": self.device,
             }
         elif self.detector == "yolo":
             self.detector_config = {
-                'margin': rospy.get_param("~margin", 10),
-                'threshold': rospy.get_param("~threshold", 0.9),
-                'device': self.device,
+                "margin": rospy.get_param("~margin", 10),
+                "threshold": rospy.get_param("~threshold", 0.9),
+                "device": self.device,
             }
         else:
             raise ValueError(f"Invalid detector model: {self.detector}")
@@ -47,7 +49,7 @@ class DetectionNode(object):
         # Mocap
         self.with_mocap = rospy.get_param("~with_mocap", True)
         if self.with_mocap:
-            self.mocap = rospy.get_param("~mocap_model", "hamer") # frankmocap_hand, hamer, 4d-human
+            self.mocap = rospy.get_param("~mocap_model", "hamer")  # frankmocap_hand, hamer, 4d-human
             if self.mocap == "frankmocap_hand":
                 self.mocap_config = {
                     "render_type": rospy.get_param("~render_type", "opengl"),  # pytorch3d, opendr, opengl
@@ -93,7 +95,6 @@ class DetectionNode(object):
                 model_config=self.mocap_config,
             )
 
-
     def callback_image(self, msg):
         im = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
         detection_results, vis_im = self.detection_model.predict(im)
@@ -106,7 +107,6 @@ class DetectionNode(object):
         vis_msg.header = msg.header
         self.pub_debug_image.publish(vis_msg)
         self.pub_detections.publish(detection_results)
-
 
 
 if __name__ == "__main__":

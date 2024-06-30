@@ -31,7 +31,6 @@ class Hand3DNode(object):
         )
         self.ts.registerCallback(self.callback)
 
-
     def callback(self, cam_info_data, depth_data, hand_data):
         # Extract the camera frame from the image message
         camera_frame = depth_data.header.frame_id
@@ -43,7 +42,6 @@ class Hand3DNode(object):
             cv_image = self.bridge.imgmsg_to_cv2(depth_data, "32FC1")
         except CvBridgeError as e:
             rospy.logerr(e)
-
 
         for detection in hand_data.detections:
             point_3d = (
@@ -71,23 +69,33 @@ class Hand3DNode(object):
                 # publish wrist pose first
                 self.tf_broadcaster.sendTransform(
                     (detection.pose.position.x, detection.pose.position.y, detection.pose.position.z),
-                    (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
+                    (
+                        detection.pose.orientation.x,
+                        detection.pose.orientation.y,
+                        detection.pose.orientation.z,
+                        detection.pose.orientation.w,
+                    ),
                     rospy.Time.now(),
-                    detection.label + "_"+ MANO_KEYPOINT_NAMES[0],
+                    detection.label + "_" + MANO_KEYPOINT_NAMES[0],
                     camera_frame,
                 )
                 for i, bone in enumerate(detection.skeleton.bones):
                     # Broadcast keypoints in the camera frame
                     self.tf_broadcaster.sendTransform(
                         (bone.end_point.x, bone.end_point.y, bone.end_point.z),
-                        (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
+                        (
+                            detection.pose.orientation.x,
+                            detection.pose.orientation.y,
+                            detection.pose.orientation.z,
+                            detection.pose.orientation.w,
+                        ),
                         rospy.Time.now(),
-                        detection.label + "_" + MANO_KEYPOINT_NAMES[i+1],
+                        detection.label + "_" + MANO_KEYPOINT_NAMES[i + 1],
                         camera_frame,
                     )
 
                 # Calibrate wrist pose using real 3D coordinates of wrist
-                pose_msg = Pose() # wrist pose
+                pose_msg = Pose()  # wrist pose
                 pose_msg.position.x = x_cam * self.scale
                 pose_msg.position.y = y_cam * self.scale
                 pose_msg.position.z = z_cam * self.scale
@@ -98,7 +106,7 @@ class Hand3DNode(object):
                     (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
                     (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
                     rospy.Time.now(),
-                    "calibrated/" + detection.label + "_"+ MANO_KEYPOINT_NAMES[0],
+                    "calibrated/" + detection.label + "_" + MANO_KEYPOINT_NAMES[0],
                     camera_frame,
                 )
 
@@ -112,9 +120,14 @@ class Hand3DNode(object):
                     bone.end_point.z += pose_msg.position.z - detection.pose.position.z
                     self.tf_broadcaster.sendTransform(
                         (bone.end_point.x, bone.end_point.y, bone.end_point.z),
-                        (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
+                        (
+                            pose_msg.orientation.x,
+                            pose_msg.orientation.y,
+                            pose_msg.orientation.z,
+                            pose_msg.orientation.w,
+                        ),
                         rospy.Time.now(),
-                        "calibrated/" + detection.label + "_" + MANO_KEYPOINT_NAMES[i+1],
+                        "calibrated/" + detection.label + "_" + MANO_KEYPOINT_NAMES[i + 1],
                         camera_frame,
                     )
 
@@ -135,18 +148,42 @@ class Hand3DNode(object):
                 gripper_pose_msg.pose.position.y = (thumb_tip_bone.end_point.y + index_tip_bone.end_point.y) / 2
                 gripper_pose_msg.pose.position.z = (thumb_tip_bone.end_point.z + index_tip_bone.end_point.z) / 2
 
-                thumb2to3 = np.array([thumb_tip_bone.end_point.x - thumb_tip_bone.start_point.x, thumb_tip_bone.end_point.y - thumb_tip_bone.start_point.y, thumb_tip_bone.end_point.z - thumb_tip_bone.start_point.z])
-                index2to3 = np.array([index_tip_bone.end_point.x - index_tip_bone.start_point.x, index_tip_bone.end_point.y - index_tip_bone.start_point.y, index_tip_bone.end_point.z - index_tip_bone.start_point.z])
+                thumb2to3 = np.array(
+                    [
+                        thumb_tip_bone.end_point.x - thumb_tip_bone.start_point.x,
+                        thumb_tip_bone.end_point.y - thumb_tip_bone.start_point.y,
+                        thumb_tip_bone.end_point.z - thumb_tip_bone.start_point.z,
+                    ]
+                )
+                index2to3 = np.array(
+                    [
+                        index_tip_bone.end_point.x - index_tip_bone.start_point.x,
+                        index_tip_bone.end_point.y - index_tip_bone.start_point.y,
+                        index_tip_bone.end_point.z - index_tip_bone.start_point.z,
+                    ]
+                )
                 x_axis = (thumb2to3 + index2to3) / 2
                 norm_x = np.linalg.norm(x_axis)
                 x_axis = x_axis / norm_x
 
                 if detection.label == "right_hand":
-                    y_axis = np.array([thumb_tip_bone.end_point.x - index_tip_bone.end_point.x, thumb_tip_bone.end_point.y - index_tip_bone.end_point.y, thumb_tip_bone.end_point.z - index_tip_bone.end_point.z])
+                    y_axis = np.array(
+                        [
+                            thumb_tip_bone.end_point.x - index_tip_bone.end_point.x,
+                            thumb_tip_bone.end_point.y - index_tip_bone.end_point.y,
+                            thumb_tip_bone.end_point.z - index_tip_bone.end_point.z,
+                        ]
+                    )
                     norm_y = np.linalg.norm(y_axis)
                     y_axis = y_axis / norm_y
                 else:
-                    y_axis = np.array([index_tip_bone.end_point.x - thumb_tip_bone.end_point.x, index_tip_bone.end_point.y - thumb_tip_bone.end_point.y, index_tip_bone.end_point.z - thumb_tip_bone.end_point.z])
+                    y_axis = np.array(
+                        [
+                            index_tip_bone.end_point.x - thumb_tip_bone.end_point.x,
+                            index_tip_bone.end_point.y - thumb_tip_bone.end_point.y,
+                            index_tip_bone.end_point.z - thumb_tip_bone.end_point.z,
+                        ]
+                    )
                     norm_y = np.linalg.norm(y_axis)
                     y_axis = y_axis / norm_y
 
@@ -162,8 +199,17 @@ class Hand3DNode(object):
 
                 # broadcast gripper tool frame
                 self.tf_broadcaster.sendTransform(
-                    (gripper_pose_msg.pose.position.x, gripper_pose_msg.pose.position.y, gripper_pose_msg.pose.position.z),
-                    (gripper_pose_msg.pose.orientation.x, gripper_pose_msg.pose.orientation.y, gripper_pose_msg.pose.orientation.z, gripper_pose_msg.pose.orientation.w),
+                    (
+                        gripper_pose_msg.pose.position.x,
+                        gripper_pose_msg.pose.position.y,
+                        gripper_pose_msg.pose.position.z,
+                    ),
+                    (
+                        gripper_pose_msg.pose.orientation.x,
+                        gripper_pose_msg.pose.orientation.y,
+                        gripper_pose_msg.pose.orientation.z,
+                        gripper_pose_msg.pose.orientation.w,
+                    ),
                     rospy.Time.now(),
                     "calibrated/" + detection.label + "_gripper_tool_frame",
                     camera_frame,

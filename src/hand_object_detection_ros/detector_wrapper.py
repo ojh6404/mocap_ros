@@ -34,36 +34,33 @@ np.random.seed(hand_object_detector_cfg.RNG_SEED)
 BOX_ANNOTATOR = sv.BoundingBoxAnnotator()
 LABEL_ANNOTATOR = sv.LabelAnnotator()
 
+
 class DetectionModelFactory:
     @staticmethod
     def from_config(model: str, model_config: dict):
         if model == "hand_object_detector":
-            return HandObjectDetectorModel(
-                **model_config
-            )
+            return HandObjectDetectorModel(**model_config)
         elif model == "mediapipe_hand":
-            return MediapipeHandModel(
-                **model_config
-            )
+            return MediapipeHandModel(**model_config)
         elif model == "yolo":
-            return YoloModel(
-                **model_config
-            )
+            return YoloModel(**model_config)
         else:
             raise ValueError(f"Unknown model: {model}")
+
 
 class DetectionModelBase(ABC):
     @abstractmethod
     def predict(self, detection_results, im, vis_im):
         pass
 
+
 class HandObjectDetectorModel(DetectionModelBase):
     def __init__(
         self,
-        threshold:float=0.9,
-        object_threshold:float=0.9,
-        margin:int=10,
-        device:str="cuda:0",
+        threshold: float = 0.9,
+        object_threshold: float = 0.9,
+        margin: int = 10,
+        device: str = "cuda:0",
     ):
         self.device = device
         self.threshold = threshold
@@ -151,7 +148,6 @@ class HandObjectDetectorModel(DetectionModelBase):
         # N:0,  S:1,  O:2,  P:3,  F:4
         state = detection[5].astype(np.int32)
         return state
-
 
     @torch.no_grad()
     def inference_step(self, im_blob, im_scales):
@@ -320,9 +316,9 @@ class HandObjectDetectorModel(DetectionModelBase):
 class MediapipeHandModel(DetectionModelBase):
     def __init__(
         self,
-        threshold:float=0.9,
-        margin:int=10,
-        device:str="cuda:0",
+        threshold: float = 0.9,
+        margin: int = 10,
+        device: str = "cuda:0",
     ):
         self.device = device
         self.threshold = threshold
@@ -330,19 +326,19 @@ class MediapipeHandModel(DetectionModelBase):
 
         # init model
         import mediapipe as mp
+
         self.mp_hands = mp.solutions.hands.Hands(
             static_image_mode=False,
             min_detection_confidence=self.threshold,
             min_tracking_confidence=0.5,
-            max_num_hands=2
+            max_num_hands=2,
         )
 
     def predict(self, im):
         hand_detections = MocapDetectionArray()
         results = self.mp_hands.process(cv2.cvtColor(im, cv2.COLOR_BGR2RGB))
         if results.multi_hand_landmarks:
-            for hand_landmarks, handedness in zip(results.multi_hand_landmarks,
-                                            results.multi_handedness):
+            for hand_landmarks, handedness in zip(results.multi_hand_landmarks, results.multi_handedness):
                 hand_detection = MocapDetection()
 
                 # flip image
@@ -381,12 +377,13 @@ class MediapipeHandModel(DetectionModelBase):
         im = cv2.cvtColor(im, cv2.COLOR_RGB2BGR)
         return hand_detections, im
 
+
 class YoloModel(DetectionModelBase):
     def __init__(
         self,
-        threshold:float=0.5,
-        margin:int=10,
-        device:str="cuda:0",
+        threshold: float = 0.5,
+        margin: int = 10,
+        device: str = "cuda:0",
     ):
         self.threshold = threshold
         self.margin = margin
@@ -394,13 +391,14 @@ class YoloModel(DetectionModelBase):
 
         # init model
         from ultralytics import YOLO
+
         self.detector = YOLO("yolov9e-seg.pt")
 
     def predict(self, im):
         # im : BGR image
         results = self.detector(im, save=False, conf=self.threshold, iou=0.5, verbose=False)[0]
         detections = sv.Detections.from_ultralytics(results)
-        detections = detections[detections.class_id == 0] # just detect person
+        detections = detections[detections.class_id == 0]  # just detect person
         xyxys = [xyxy for xyxy in detections.xyxy]
         scores = detections.confidence.tolist()
         body_detections = MocapDetectionArray()
