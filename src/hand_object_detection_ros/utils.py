@@ -21,7 +21,7 @@ HAMER_CONFIG_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/model_config.yaml"
 HAND_COLOR = (0.65098039,  0.74117647,  0.85882353)
 
 # hand constants
-FINGER_KEPOINT_NAMES = [
+FINGER_KEYPOINT_NAMES = [
     "wrist", "thumb0", "thumb1", "thumb2", "thumb3",
     "index0", "index1", "index2", "index3",
     "middle0", "middle1", "middle2", "middle3",

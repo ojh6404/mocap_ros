@@ -11,7 +11,7 @@ from hand_object_detection_ros.msg import MocapDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-from hand_object_detection_ros.utils import FINGER_KEPOINT_NAMES, axes_to_quaternion
+from hand_object_detection_ros.utils import FINGER_KEYPOINT_NAMES, axes_to_quaternion
 
 
 class Hand3DNode(object):
@@ -73,7 +73,7 @@ class Hand3DNode(object):
                     (detection.pose.position.x, detection.pose.position.y, detection.pose.position.z),
                     (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
                     rospy.Time.now(),
-                    detection.label + "_"+ FINGER_KEPOINT_NAMES[0],
+                    detection.label + "_"+ FINGER_KEYPOINT_NAMES[0],
                     camera_frame,
                 )
                 for i, bone in enumerate(detection.skeleton.bones):
@@ -82,7 +82,7 @@ class Hand3DNode(object):
                         (bone.end_point.x, bone.end_point.y, bone.end_point.z),
                         (detection.pose.orientation.x, detection.pose.orientation.y, detection.pose.orientation.z, detection.pose.orientation.w),
                         rospy.Time.now(),
-                        detection.label + "_" + FINGER_KEPOINT_NAMES[i+1],
+                        detection.label + "_" + FINGER_KEYPOINT_NAMES[i+1],
                         camera_frame,
                     )
 
@@ -98,7 +98,7 @@ class Hand3DNode(object):
                     (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
                     (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
                     rospy.Time.now(),
-                    "calibrated/" + detection.label + "_"+ FINGER_KEPOINT_NAMES[0],
+                    "calibrated/" + detection.label + "_"+ FINGER_KEYPOINT_NAMES[0],
                     camera_frame,
                 )
 
@@ -114,7 +114,7 @@ class Hand3DNode(object):
                         (bone.end_point.x, bone.end_point.y, bone.end_point.z),
                         (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
                         rospy.Time.now(),
-                        "calibrated/" + detection.label + "_" + FINGER_KEPOINT_NAMES[i+1],
+                        "calibrated/" + detection.label + "_" + FINGER_KEYPOINT_NAMES[i+1],
                         camera_frame,
                     )
 
