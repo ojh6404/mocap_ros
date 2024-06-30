@@ -59,7 +59,7 @@ if __name__ == "__main__":
                 "source ~/.bashrc; \
                 roscd hand_object_detection_ros; \
                 rossetip; rossetmaster {host}; \
-                xvfb-run -a roslaunch hand_object_detection_ros {launch_file_name} {launch_args}"
+                roslaunch hand_object_detection_ros {launch_file_name} {launch_args}"
                 """.format(
             node_scripts_dir=Path(__file__).resolve().parent / "node_scripts",
             tmp_launch_path=tmp_launch_path,

@@ -58,11 +58,6 @@ CONNECTION_NAMES = [
     "wrist->pinky0", "pinky0->pinky1", "pinky1->pinky2", "pinky2->pinky3",
 ]
 
-
-# for calculating hand origin
-PALM_JOINTS = [0, 2, 5, 9, 13, 17]
-WEIGHTS = np.array([0.5, 0.1, 0.1, 0.1, 0.1, 0.1])
-
 def axes_to_quaternion(x_axis, y_axis, z_axis):
     rotation_matrix = np.column_stack((x_axis, y_axis, z_axis))
     r = R.from_matrix(rotation_matrix)
@@ -123,18 +118,40 @@ def load_hamer(checkpoint_path, config_path, img_size, focal_length):
     model = HAMER.load_from_checkpoint(checkpoint_path, strict=False, cfg=model_cfg)
     return model, model_cfg
 
+def load_hmr2(checkpoint_path, img_size, focal_length):
+    from pathlib import Path
+    from hmr2.configs import get_config
+    from hmr2.models import check_smpl_exists
+    from hmr2.models.hmr2 import HMR2
+    model_cfg = str(Path(checkpoint_path).parent.parent / 'model_config.yaml')
+    model_cfg = get_config(model_cfg, update_cachedir=True)
+    model_cfg.defrost()
+    model_cfg.EXTRA.FOCAL_LENGTH = int(focal_length * model_cfg.MODEL.IMAGE_SIZE / max(img_size))
+    model_cfg.freeze()
+
+    # Override some config values, to crop bbox correctly
+    if (model_cfg.MODEL.BACKBONE.TYPE == 'vit') and ('BBOX_SHAPE' not in model_cfg.MODEL):
+        model_cfg.defrost()
+        assert model_cfg.MODEL.IMAGE_SIZE == 256, f"MODEL.IMAGE_SIZE ({model_cfg.MODEL.IMAGE_SIZE}) should be 256 for ViT backbone"
+        model_cfg.MODEL.BBOX_SHAPE = [192,256]
+        model_cfg.freeze()
+
+    # Ensure SMPL model exists
+    check_smpl_exists()
+
+    model = HMR2.load_from_checkpoint(checkpoint_path, strict=False, cfg=model_cfg)
+    return model, model_cfg
 
 
-class HamerRenderer(object):
+class Renderer(object):
     def __init__(self, faces, cfg, width=640, height=480):
-        super(HamerRenderer, self).__init__()
+        super(Renderer, self).__init__()
         self.width = width
         self.height = height
 
         self.focal_length = cfg.EXTRA.FOCAL_LENGTH / cfg.MODEL.IMAGE_SIZE * max(width, height)
         self.camera_center = [self.width / 2., self.height / 2.]
         self.camera_pose = np.eye(4)
-        # self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1], zfar=1e12)
         self.camera = pyrender.IntrinsicsCamera(fx=self.focal_length, fy=self.focal_length, cx=self.camera_center[0], cy=self.camera_center[1])
 
         self.lights = self.create_raymond_lights()
@@ -168,7 +185,6 @@ class HamerRenderer(object):
             rot_axis=[1,0,0],
             rot_angle=0,
             is_right=None,
-            keypoints=None,
         ):
         # Create pyrender scene
         scene = pyrender.Scene(bg_color=[0.0, 0.0, 0.0, 0.0],
@@ -235,4 +251,3 @@ def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000
     # full_cam = torch.stack([tx, ty, tz], dim=-1)
     full_cam = np.stack([tx, ty, tz], axis=-1)
     return full_cam
-

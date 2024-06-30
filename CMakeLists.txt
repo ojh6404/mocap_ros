@@ -13,8 +13,8 @@ catkin_python_setup()
 
 add_message_files(
     FILES
-    HandDetection.msg
-    HandDetectionArray.msg
+    MocapDetection.msg
+    MocapDetectionArray.msg
 )
 
 generate_messages(
