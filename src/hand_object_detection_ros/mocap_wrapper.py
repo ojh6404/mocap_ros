@@ -17,8 +17,12 @@ from hand_object_detection_ros.utils import (
     draw_axis,
     load_hamer,
     load_hmr2,
-    FINGER_JOINTS_CONNECTION,
-    CONNECTION_NAMES,
+    MANO_JOINTS_CONNECTION,
+    MANO_CONNECTION_NAMES,
+    SMPL_JOINTS_CONNECTION,
+    SMPL_CONNECTION_NAMES,
+    SPIN_JOINTS_CONNECTION,
+    SPIN_CONNECTION_NAMES,
     FRANKMOCAP_PATH,
     FRANKMOCAP_CHECKPOINT,
     SMPL_DIR,
@@ -132,7 +136,7 @@ class FrankMocapHandModel(MocapModelBase):
                     hand_skeleton = HumanSkeleton()
                     hand_skeleton.bone_names = []
                     hand_skeleton.bones = []
-                    for i, (start, end) in enumerate(FINGER_JOINTS_CONNECTION):
+                    for i, (start, end) in enumerate(MANO_JOINTS_CONNECTION):
                         bone = Segment()
                         bone.start_point = Point(
                             x=joint_3d_coords[start][0], y=joint_3d_coords[start][1], z=joint_3d_coords[start][2]
@@ -141,7 +145,7 @@ class FrankMocapHandModel(MocapModelBase):
                             x=joint_3d_coords[end][0], y=joint_3d_coords[end][1], z=joint_3d_coords[end][2]
                         )
                         hand_skeleton.bones.append(bone)
-                        hand_skeleton.bone_names.append(CONNECTION_NAMES[i])
+                        hand_skeleton.bone_names.append(MANO_CONNECTION_NAMES[i])
 
                     hand_pose = Pose()
                     hand_pose.position.x = hand_origin[0]
@@ -295,7 +299,7 @@ class HamerModel(MocapModelBase):
                 hand_skeleton = HumanSkeleton()
                 hand_skeleton.bone_names = []
                 hand_skeleton.bones = []
-                for j, (start, end) in enumerate(FINGER_JOINTS_CONNECTION):
+                for j, (start, end) in enumerate(MANO_JOINTS_CONNECTION):
                     bone = Segment()
                     bone.start_point = Point(
                         x=pred_keypoints_3d[i][start][0], y=pred_keypoints_3d[i][start][1], z=pred_keypoints_3d[i][start][2]
@@ -304,7 +308,7 @@ class HamerModel(MocapModelBase):
                         x=pred_keypoints_3d[i][end][0], y=pred_keypoints_3d[i][end][1], z=pred_keypoints_3d[i][end][2]
                     )
                     hand_skeleton.bones.append(bone)
-                    hand_skeleton.bone_names.append(CONNECTION_NAMES[j])
+                    hand_skeleton.bone_names.append(MANO_CONNECTION_NAMES[j])
 
                 detection_results.detections[i].pose = hand_pose
                 detection_results.detections[i].skeleton = hand_skeleton
@@ -408,15 +412,70 @@ class HMR2Model(MocapModelBase):
             scaled_focal_length = self.model_cfg.EXTRA.FOCAL_LENGTH / self.model_cfg.MODEL.IMAGE_SIZE * img_size.max()
             pred_cam_t_full = cam_crop_to_full(pred_cam, box_center, box_size, img_size, scaled_focal_length).detach().cpu().numpy()
 
+
+            # this model uses 44 keypoints, but we use only 25 keypoints which corresponds to OpenPose keypoints
             # 2D keypoints
             box_center = batch["box_center"].detach().cpu().numpy() # [N, 2]
             box_size = batch["box_size"].detach().cpu().numpy() # [N,]
-            pred_keypoints_2d = out['pred_keypoints_2d'].detach().cpu().numpy() # [N, 21, 2]
+            pred_keypoints_2d = out['pred_keypoints_2d'].detach().cpu().numpy() # [N, 44, 2]
             pred_keypoints_2d = pred_keypoints_2d * box_size[:, None, None] + box_center[:, None, :]
+            pred_keypoints_2d = pred_keypoints_2d[:, :25, :] # use only 25 keypoints
 
             # 3D keypoints
-            pred_keypoints_3d = out['pred_keypoints_3d'].detach().cpu().numpy() # [N, 21, 3]
+            pred_keypoints_3d = out['pred_keypoints_3d'].detach().cpu().numpy() # [N, 44, 3]
             pred_keypoints_3d += pred_cam_t_full[:, None, :]
+            pred_keypoints_3d = pred_keypoints_3d[:, :25, :] # use only 25 keypoints
+
+            # body pose
+            body_origin = np.mean(pred_keypoints_2d, axis=1) # [N, 2]
+            body_origin = np.concatenate([body_origin, np.zeros((body_origin.shape[0], 1))], axis=1) # [N, 3]
+            global_orient = out['pred_smpl_params']['global_orient'].squeeze(1).detach().cpu().numpy() # [N, 3, 3]
+            quats = []
+
+            for i in range(len(detection_results.detections)): # for each body
+                body_pose = Pose()
+                body_pose.position.x = pred_keypoints_3d[i][0][0] # wrist
+                body_pose.position.y = pred_keypoints_3d[i][0][1]
+                body_pose.position.z = pred_keypoints_3d[i][0][2]
+                rotation = global_orient[i]
+
+                quat = rotation_matrix_to_quaternion(rotation) # [w, x, y, z]
+                x_axis = np.array([0, 1, 0])
+                y_axis = np.array([1, 0, 0])
+                z_axis = np.array([0, 0, 1])
+                rotated_result = R.from_rotvec(np.pi * np.array([1, 0, 0])) * R.from_quat(quat) # rotate 180 degree around x-axis
+                quat = rotated_result.as_quat()  # [w, x, y, z]
+                quats.append(quat)
+                body_pose.orientation.x = quat[1]
+                body_pose.orientation.y = quat[2]
+                body_pose.orientation.z = quat[3]
+                body_pose.orientation.w = quat[0]
+                x_axis_rotated = rotation @ x_axis
+                y_axis_rotated = rotation @ y_axis
+                z_axis_rotated = rotation @ z_axis
+                # visualize hand orientation
+                vis_im = draw_axis(vis_im, body_origin[i], x_axis_rotated, (0, 0, 255))  # x: red
+                vis_im = draw_axis(vis_im, body_origin[i], y_axis_rotated, (0, 255, 0))  # y: green
+                vis_im = draw_axis(vis_im, body_origin[i], z_axis_rotated, (255, 0, 0))  # z: blue
+
+                # body skeleton
+                body_skeleton = HumanSkeleton()
+                body_skeleton.bone_names = []
+                body_skeleton.bones = []
+                for j, (start, end) in enumerate(SPIN_JOINTS_CONNECTION):
+                    bone = Segment()
+                    bone.start_point = Point(
+                        x=pred_keypoints_3d[i][start][0], y=pred_keypoints_3d[i][start][1], z=pred_keypoints_3d[i][start][2]
+                    )
+                    bone.end_point = Point(
+                        x=pred_keypoints_3d[i][end][0], y=pred_keypoints_3d[i][end][1], z=pred_keypoints_3d[i][end][2]
+                    )
+
+                    body_skeleton.bones.append(bone)
+                    body_skeleton.bone_names.append(SPIN_CONNECTION_NAMES[j])
+
+                detection_results.detections[i].pose = body_pose
+                detection_results.detections[i].skeleton = body_skeleton
 
 
             if self.visualize:
@@ -440,11 +499,17 @@ class HMR2Model(MocapModelBase):
                     alpha = rgba[..., 3].astype(np.float32) / 255.0
                     vis_im = (alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(im, cv2.COLOR_BGR2RGB)).astype(np.uint8)
 
+                # Draw 2D keypoints
+                for i, keypoints in enumerate(pred_keypoints_2d):
+                    for j, keypoint in enumerate(keypoints):
+                        cv2.circle(vis_im, (int(keypoint[0]), int(keypoint[1])), 5, (0, 255, 0), -1)
+
             # # project 3d keypoints to 2d and draw
             # for i, keypoints in enumerate(pred_keypoints_2d):
             #     for j, keypoint in enumerate(keypoints):
             #         point_x, point_y = self.camera_model.project3dToPixel(pred_keypoints_3d[i][j])
             #         cv2.circle(vis_im, (int(point_x), int(point_y)), 5, (0, 255, 0), -1)
+            #
 
 
         # return detection_results, pose_array, vis_im

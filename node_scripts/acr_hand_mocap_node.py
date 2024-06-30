@@ -29,7 +29,7 @@ if args().model_precision=='fp16':
 from acr.model import ACR as ACR_v1
 from acr.mano_wrapper import MANOWrapper
 
-from utils import rotation_matrix_to_quaternion, draw_axis, FINGER_JOINTS_CONNECTION
+from utils import rotation_matrix_to_quaternion, draw_axis, MANO_JOINTS_CONNECTION
 
 class ACRHandMocapNode(object):
     def __init__(self):
@@ -99,7 +99,7 @@ class ACRHandMocapNode(object):
                 hand_skeleton = HumanSkeleton(header=msg.header)
                 hand_skeleton.bone_names = []
                 hand_skeleton.bones = []
-                for i, (start, end) in enumerate(FINGER_JOINTS_CONNECTION):
+                for i, (start, end) in enumerate(MANO_JOINTS_CONNECTION):
                     bone = Segment()
                     bone.start_point = Point(
                         x=j3d[start][0], y=j3d[start][1], z=j3d[start][2]
