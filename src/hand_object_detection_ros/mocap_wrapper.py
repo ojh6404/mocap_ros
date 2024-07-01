@@ -356,7 +356,6 @@ class HamerModel(MocapModelBase):
                         alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
                     ).astype(np.uint8)
 
-
         # return detection_results, pose_array, vis_im
         return detection_results, vis_im
 
