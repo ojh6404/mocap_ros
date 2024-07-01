@@ -7,11 +7,11 @@ import tf
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseStamped
 from image_geometry import PinholeCameraModel
-from hand_object_detection_ros.msg import MocapDetectionArray
+from mocap_ros.msg import MocapDetectionArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-from hand_object_detection_ros.utils import MANO_KEYPOINT_NAMES, axes_to_quaternion
+from mocap_ros.utils import MANO_KEYPOINT_NAMES, axes_to_quaternion
 
 
 class Hand3DNode(object):

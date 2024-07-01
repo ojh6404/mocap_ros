@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>hand_object_detection_ros</name>
+  <name>mocap_ros</name>
   <version>0.0.1</version>
-  <description>Hand Object Detection ROS package</description>
+  <description>Motion Capture ROS package</description>
 
   <maintainer email="oh@jsk.imi.i.u-tokyo.ac.jp">Jihoon Oh</maintainer>
   <license>BSD</license>

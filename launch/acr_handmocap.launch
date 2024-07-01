@@ -31,9 +31,9 @@
   <!--   <remap from="out" to="decompressed_depth"/> -->
   <!-- </node> -->
 
-  <!-- hand_object_detection node -->
+  <!-- mocap node -->
   <node name="acr_hand_mocap_node"
-        pkg="hand_object_detection_ros" type="acr_hand_mocap_node.py"
+        pkg="mocap_ros" type="acr_hand_mocap_node.py"
         output="screen" >
     <remap from="~input_image" to="$(arg _input_image)" />
     <rosparam subst_value="true" >
@@ -47,7 +47,7 @@
   </node>
   <!-- hand 3d track node node -->
   <node name="hand_3d_node"
-        pkg="hand_object_detection_ros" type="hand_3d_node.py"
+        pkg="mocap_ros" type="hand_3d_node.py"
         output="screen" if="$(arg track_3d)">
     <remap from="~input_depth" to="$(arg input_depth)" />
     <remap from="~camera_info" to="$(arg camera_info)" />

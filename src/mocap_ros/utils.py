@@ -7,7 +7,7 @@ import trimesh
 from scipy.spatial.transform import Rotation as R
 
 # hand object detector and frankmocap paths
-FRANKMOCAP_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/frankmocap"
+FRANKMOCAP_PATH = rospkg.RosPack().get_path("mocap_ros") + "/frankmocap"
 HAND_OBJECT_MODEL_PATH = FRANKMOCAP_PATH + "/detectors/hand_object_detector/lib"
 FONT_PATH = HAND_OBJECT_MODEL_PATH + "/model/utils/times_b.ttf"
 CHECKPOINT_FILE = FRANKMOCAP_PATH + "/extra_data/hand_module/hand_detector/faster_rcnn_1_8_132028.pth"
@@ -16,7 +16,7 @@ SMPL_DIR = FRANKMOCAP_PATH + "/extra_data/smpl/"
 PASCAL_CLASSES = np.asarray(["__background__", "targetobject", "hand"])  # for hand object detector
 
 # hamer paths
-HAMER_ROOT = rospkg.RosPack().get_path("hand_object_detection_ros") + "/hamer"
+HAMER_ROOT = rospkg.RosPack().get_path("mocap_ros") + "/hamer"
 HAMER_CHECKPOINT_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/checkpoints/hamer.ckpt"
 HAMER_CONFIG_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/model_config.yaml"
 HAND_COLOR = (0.65098039, 0.74117647, 0.85882353)

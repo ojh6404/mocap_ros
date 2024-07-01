@@ -33,4 +33,4 @@ rm -rf _DATA/vitpose_ckpts
 # install 4D-Humans
 cd ../4D-Humans && python3 -m pip install -e .[all]
 mkdir data && gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O data/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
-python3 -m pip install PyOpenGL==3.1.7 PyOpenGL_accelerate==3.1.7 numpy==1.24.3
+python3 -m pip install -U PyOpenGL PyOpenGL_accelerate numpy mediapipe supervision ultralytics

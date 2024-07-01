@@ -13,9 +13,9 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import Pose, Point
 from jsk_recognition_msgs.msg import Segment, HumanSkeleton
-from hand_object_detection_ros.msg import HandDetection, HandDetectionArray
+from mocap_ros.msg import HandDetection, HandDetectionArray
 
-ACR_PATH = rospkg.RosPack().get_path("hand_object_detection_ros") + "/Arbitrary-Hands-3D-Reconstruction"
+ACR_PATH = rospkg.RosPack().get_path("mocap_ros") + "/Arbitrary-Hands-3D-Reconstruction"
 sys.path.insert(0, ACR_PATH)
 
 import acr.config as config

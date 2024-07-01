@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(hand_object_detection_ros)
+project(mocap_ros)
 
 find_package(catkin REQUIRED COMPONENTS
   sensor_msgs

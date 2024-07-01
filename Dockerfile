@@ -101,8 +101,8 @@ ENV PATH="$PATH:/home/user/.local/bin"
 # Installing catkin package
 RUN mkdir -p ~/catkin_ws/src
 RUN sudo rosdep init && rosdep update && sudo apt update
-RUN cd ~/catkin_ws/src && git clone https://github.com/ojh6404/hand_object_detection_ros.git
-RUN cd ~/catkin_ws/src/hand_object_detection_ros && ./prepare.sh
+RUN cd ~/catkin_ws/src && git clone https://github.com/ojh6404/mocap_ros.git
+RUN cd ~/catkin_ws/src/mocap_ros && ./prepare.sh
 RUN cd ~/catkin_ws/src/ &&\
     source /opt/ros/noetic/setup.bash &&\
     rosdep install --from-paths . --ignore-src -y -r &&\
@@ -110,8 +110,8 @@ RUN cd ~/catkin_ws/src/ &&\
     rm -rf /home/user/.cache/pip
 
 # to avoid conflcit when mounting
-RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/launch
-RUN rm -rf ~/catkin_ws/src/hand_object_detection_ros/node_scripts
+RUN rm -rf ~/catkin_ws/src/mocap_ros/launch
+RUN rm -rf ~/catkin_ws/src/mocap_ros/node_scripts
 
 #########################################
 ############ ENV VARIABLE STUFF #########

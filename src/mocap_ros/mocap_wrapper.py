@@ -12,7 +12,7 @@ from geometry_msgs.msg import Pose, Point
 from jsk_recognition_msgs.msg import Segment, HumanSkeleton
 
 # utils and constants
-from hand_object_detection_ros.utils import (
+from mocap_ros.utils import (
     rotation_matrix_to_quaternion,
     draw_axis,
     load_hamer,

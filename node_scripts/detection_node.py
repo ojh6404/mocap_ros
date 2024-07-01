@@ -8,11 +8,11 @@ from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import Image, CameraInfo
-from hand_object_detection_ros.msg import MocapDetectionArray
+from mocap_ros.msg import MocapDetectionArray
 
-from hand_object_detection_ros.detector_wrapper import DetectionModelFactory
-from hand_object_detection_ros.mocap_wrapper import MocapModelFactory
-from hand_object_detection_ros.utils import (
+from mocap_ros.detector_wrapper import DetectionModelFactory
+from mocap_ros.mocap_wrapper import MocapModelFactory
+from mocap_ros.utils import (
     SPIN_KEYPOINT_NAMES,
     MANO_KEYPOINT_NAMES,
 )

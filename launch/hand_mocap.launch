@@ -1,7 +1,7 @@
 <launch>
   <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
   <arg name="input_depth" default="/kinect_head/depth_registered/image_rect"/>
-  <arg name="input_detections" default="/hand_detection_node/detections"/>
+  <arg name="input_detections" default="/detection_node/detections"/>
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
   <arg name="publish_tf" default="true" />
@@ -19,7 +19,7 @@
   <arg name="margin" default="10" /> <!-- cpu or cuda -->
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
-  <arg name="_input_image" value="/hand_detection_node/input_image" if="$(arg decompress)" />
+  <arg name="_input_image" value="/detection_node/input_image" if="$(arg decompress)" />
 
   <!-- Image Decompress -->
   <node name="image_decompresser"
@@ -30,8 +30,8 @@
   </node>
 
   <!-- hand_detection node -->
-  <node name="hand_detection_node"
-        pkg="hand_object_detection_ros" type="detection_node.py"
+  <node name="detection_node"
+        pkg="mocap_ros" type="detection_node.py"
         output="screen" >
     <remap from="~input_image" to="$(arg _input_image)" />
     <remap from="~camera_info" to="$(arg camera_info)" />
@@ -50,7 +50,7 @@
   </node>
   <!-- hand 3d track node node -->
   <node name="hand_3d_node"
-        pkg="hand_object_detection_ros" type="hand_3d_node.py"
+        pkg="mocap_ros" type="hand_3d_node.py"
         output="screen" if="$(arg track_3d)">
     <remap from="~input_depth" to="$(arg input_depth)" />
     <remap from="~camera_info" to="$(arg camera_info)" />

@@ -8,10 +8,10 @@ import numpy as np
 import cv2
 import supervision as sv
 from jsk_recognition_msgs.msg import Rect
-from hand_object_detection_ros.msg import MocapDetection, MocapDetectionArray
+from mocap_ros.msg import MocapDetection, MocapDetectionArray
 
 # utils and constants
-from hand_object_detection_ros.utils import (
+from mocap_ros.utils import (
     PASCAL_CLASSES,
     HAND_OBJECT_MODEL_PATH,
     CHECKPOINT_FILE,
