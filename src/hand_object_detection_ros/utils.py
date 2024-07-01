@@ -170,7 +170,7 @@ SMPL_CONNECTION_NAMES = [
 ]
 
 # for 4D-Humans, See https://github.com/shubham-goel/4D-Humans/issues/45
-SPIN_JOINT_NAMES = [
+SPIN_KEYPOINT_NAMES = [
     "Nose",
     "Neck",
     "RShoulder",

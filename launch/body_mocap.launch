@@ -4,6 +4,7 @@
   <arg name="input_detections" default="/body_detection_node/detections"/>
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
+  <arg name="publish_tf" default="true" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
   <arg name="threshold" default="0.9" />
   <arg name="with_mocap" default="true" />
@@ -36,6 +37,7 @@
     <remap from="~camera_info" to="$(arg camera_info)" />
     <rosparam subst_value="true" >
         device: $(arg device)
+        publish_tf: $(arg publish_tf)
         threshold: $(arg threshold)
         with_mocap: $(arg with_mocap)
         detector_model: $(arg detector_model)
