@@ -1,6 +1,6 @@
-# hand_object_detection_ros 
+# mocap_ros 
 
-ROS1 wrapper package for hand detection and mocap with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git), [frankmocap](https://github.com/facebookresearch/frankmocap.git) and [HaMeR](https://github.com/geopavlakos/hamer.git).
+ROS1 wrapper package for motion capture with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git), [frankmocap](https://github.com/facebookresearch/frankmocap.git), [HaMeR](https://github.com/geopavlakos/hamer.git) and [4D-Humans](https://github.com/shubham-goel/4D-Humans.git).
 
 ![Alt text](asset/hand_object_detection_example.gif)
 
