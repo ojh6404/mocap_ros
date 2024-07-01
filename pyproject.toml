@@ -1,37 +1,21 @@
-[tool.flake8]
-exclude = "hand_object_detector"
-ignore = "H,E501,E402,W503,F841,E203"
-
-[tool.isort] # not used for now
-profile = "black"
-line_length = 120
-
-[tool.black]
+[tool.ruff]
 line-length = 120
-target-version = ["py38", "py39"]
-exclude = "hand_object_detector"
-
-[tool.mypy]
-python_version = 3.9
-exclude = "hand_object_detector"
-show_error_codes = true
-warn_unused_ignores = false
-check_untyped_defs = true
-
-[[tool.mypy.overrides]]
-module = [
-       "rospy",
-       "rostest",
-       "rospkg",
-       "cv_bridge",
-       "sensor_msgs.msg",
-       "geometry_msgs.msg",
-       "jsk_recognition_msgs.msg",
-       "jsk_topic_tools",
-       "jsk_data",
-       "torchvision",
-       "model.*",
-       "matplotlib.*"
+target-version = "py38"
+exclude = [
+    "4D-Humans",
+    "Arbitrary-Hands-3D-Reconstruction",
+    "frankmocap",
+    "hamer",
+    "tests/data",
+    ".eggs",
+    ".git",
+    ".ruff_cache",
+    "__pypackages__",
+    "buck-out",
+    "build",
+    "dist",
 ]
-ignore_missing_imports = true
 
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "N", "B", "C4", "SIM"]

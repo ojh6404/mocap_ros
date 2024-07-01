@@ -1,26 +1,25 @@
 <launch>
   <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
-  <arg name="input_depth" default="/kinect_head/depth_registered/image_raw"/>
-  <arg name="input_detections" default="/hand_object_detection_node/hand_detections"/>
+  <arg name="input_depth" default="/kinect_head/depth_registered/image_rect"/>
+  <arg name="input_detections" default="/hand_detection_node/detections"/>
   <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
   <arg name="decompress" default="true" />
+  <arg name="publish_tf" default="true" />
   <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
-  <arg name="hand_threshold" default="0.9" />
-  <arg name="object_threshold" default="0.9" />
-  <arg name="with_handmocap" default="true" />
-  <arg name="detector_model" default="hand_object_detector" />  <!-- hand_object_detector, mediapipe, ... -->
-  <arg name="mocap_model" default="frankmocap" />  <!-- frankmocap, hamer -->
+  <arg name="threshold" default="0.9" />
+  <arg name="with_mocap" default="true" />
+  <arg name="detector_model" default="hand_object_detector" />  <!-- hand_object_detector, mediapipe_hand, ... -->
+  <arg name="mocap_model" default="hamer" />  <!-- frankmocap_hand, hamer, 4d-human -->
   <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
-  <arg name="render_type" default="opengl" />  <!-- opengl or pytorch3d -->
+  <arg name="render_type" default="opengl" />  <!-- for frankmocap, opengl or pytorch3d -->
   <arg name="rescale_factor" default="2.0" />  <!-- for hamer -->
   <arg name="track_3d" default="false" />
   <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
-  <arg name="slop" default="0.15" />
-  <arg name="apply_filter" default="true" />
+  <arg name="slop" default="0.3" />
   <arg name="margin" default="10" /> <!-- cpu or cuda -->
 
   <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
-  <arg name="_input_image" value="/hand_object_detection_node/input_image" if="$(arg decompress)" />
+  <arg name="_input_image" value="/hand_detection_node/input_image" if="$(arg decompress)" />
 
   <!-- Image Decompress -->
   <node name="image_decompresser"
@@ -30,24 +29,17 @@
     <remap from="out" to="$(arg _input_image)"/>
   </node>
 
-  <!-- <node name="depth_decompresser" -->
-  <!--      pkg="image_transport" type="republish" -->
-  <!--      args="compressedDepth raw" respawn="true"> -->
-  <!--   <remap from="in" to="$(arg input_depth)"/> -->
-  <!--   <remap from="out" to="decompressed_depth"/> -->
-  <!-- </node> -->
-
-  <!-- hand_object_detection node -->
-  <node name="hand_object_detection_node"
-        pkg="hand_object_detection_ros" type="hand_object_detection_node.py"
+  <!-- hand_detection node -->
+  <node name="hand_detection_node"
+        pkg="hand_object_detection_ros" type="detection_node.py"
         output="screen" >
     <remap from="~input_image" to="$(arg _input_image)" />
     <remap from="~camera_info" to="$(arg camera_info)" />
     <rosparam subst_value="true" >
         device: $(arg device)
-        hand_threshold: $(arg hand_threshold)
-        object_threshold: $(arg object_threshold)
-        with_handmocap: $(arg with_handmocap)
+        publish_tf: $(arg publish_tf)
+        threshold: $(arg threshold)
+        with_mocap: $(arg with_mocap)
         detector_model: $(arg detector_model)
         mocap_model: $(arg mocap_model)
         visualize: $(arg visualize)
@@ -66,7 +58,6 @@
     <rosparam subst_value="true" >
         slop: $(arg slop)
         scale: $(arg depth_scale)
-        apply_filter: $(arg apply_filter)
     </rosparam>
   </node>
 </launch>

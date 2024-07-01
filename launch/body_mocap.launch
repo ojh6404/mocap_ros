@@ -1,0 +1,51 @@
+<launch>
+  <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
+  <arg name="input_depth" default="/kinect_head/depth_registered/image_rect"/>
+  <arg name="input_detections" default="/body_detection_node/detections"/>
+  <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
+  <arg name="decompress" default="true" />
+  <arg name="publish_tf" default="true" />
+  <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
+  <arg name="threshold" default="0.9" />
+  <arg name="with_mocap" default="true" />
+  <arg name="detector_model" default="yolo" />  <!-- yolo, ... -->
+  <arg name="mocap_model" default="4d-human" />  <!-- frankmocap_body, 4d-human, ... -->
+  <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
+  <arg name="render_type" default="opengl" />  <!-- for frankmocap, opengl or pytorch3d -->
+  <arg name="rescale_factor" default="2.0" />  <!-- for 4d-human -->
+  <arg name="track_3d" default="false" />
+  <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
+  <arg name="slop" default="0.3" />
+  <arg name="margin" default="10" /> <!-- cpu or cuda -->
+
+  <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
+  <arg name="_input_image" value="/body_detection_node/input_image" if="$(arg decompress)" />
+
+  <!-- Image Decompress -->
+  <node name="image_decompresser"
+        pkg="image_transport" type="republish"
+        args="compressed raw" respawn="true" if="$(arg decompress)">
+    <remap from="in" to="$(arg input_image)"/>
+    <remap from="out" to="$(arg _input_image)"/>
+  </node>
+
+  <!-- body_detection node -->
+  <node name="body_detection_node"
+        pkg="hand_object_detection_ros" type="detection_node.py"
+        output="screen" >
+    <remap from="~input_image" to="$(arg _input_image)" />
+    <remap from="~camera_info" to="$(arg camera_info)" />
+    <rosparam subst_value="true" >
+        device: $(arg device)
+        publish_tf: $(arg publish_tf)
+        threshold: $(arg threshold)
+        with_mocap: $(arg with_mocap)
+        detector_model: $(arg detector_model)
+        mocap_model: $(arg mocap_model)
+        visualize: $(arg visualize)
+        render_type: $(arg render_type)
+        rescale_factor: $(arg rescale_factor)
+        margin: $(arg margin)
+    </rosparam>
+  </node>
+</launch>

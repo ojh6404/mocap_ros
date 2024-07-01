@@ -7,3 +7,7 @@
 [submodule "hamer"]
 	path = hamer
 	url = https://github.com/ojh6404/hamer.git
+[submodule "4D-Humans"]
+	path = 4D-Humans
+	url = https://github.com/ojh6404/4D-Humans.git
+	branch = patch-python3.8
