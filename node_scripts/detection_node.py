@@ -4,15 +4,18 @@
 import rospy
 import numpy as np
 import tf
+from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import Image, CameraInfo
-from geometry_msgs.msg import Pose, PoseStamped
 from hand_object_detection_ros.msg import MocapDetectionArray
 
 from hand_object_detection_ros.detector_wrapper import DetectionModelFactory
 from hand_object_detection_ros.mocap_wrapper import MocapModelFactory
-from hand_object_detection_ros.utils import axes_to_quaternion, SPIN_KEYPOINT_NAMES, MANO_KEYPOINT_NAMES
+from hand_object_detection_ros.utils import (
+    SPIN_KEYPOINT_NAMES,
+    MANO_KEYPOINT_NAMES,
+)
 
 
 class DetectionNode(object):
@@ -113,19 +116,21 @@ class DetectionNode(object):
         if self.with_mocap:
             detections, vis_im = self.mocap_model.predict(detections, im, vis_im)
 
-
-
         vis_msg = self.bridge.cv2_to_imgmsg(vis_im.astype(np.uint8), encoding="rgb8")
         vis_msg.header = msg.header
         self.pub_debug_image.publish(vis_msg)
         self.pub_detections.publish(detections)
 
         if self.publish_tf:
-            for i, detection in enumerate(detections.detections):
+            for detection in detections.detections:
                 try:
                     # publish pose in the camera frame
                     self.tf_broadcaster.sendTransform(
-                        (detection.pose.position.x, detection.pose.position.y, detection.pose.position.z),
+                        (
+                            detection.pose.position.x,
+                            detection.pose.position.y,
+                            detection.pose.position.z,
+                        ),
                         (
                             detection.pose.orientation.x,
                             detection.pose.orientation.y,
@@ -133,24 +138,44 @@ class DetectionNode(object):
                             detection.pose.orientation.w,
                         ),
                         rospy.Time.now(),
-                        detection.label + "_" + str(i) + "/pose"
+                        detection.label + "/" + self.keypoint_names[0],
                         msg.header.frame_id,
                     )
-                    for i, bone in enumerate(detection.skeleton.bones):
-                        # Broadcast keypoints in the camera frame
-                        self.tf_broadcaster.sendTransform(
-                            (bone.end_point.x, bone.end_point.y, bone.end_point.z),
-                            (
+                    for bone_name in detection.skeleton.bone_names:
+                        parent_name = bone_name.split("->")[0]
+                        child_name = bone_name.split("->")[1]
+                        bone_idx = detection.skeleton.bone_names.index(bone_name)
+
+                        parent_point = detection.skeleton.bones[bone_idx].start_point
+                        child_point = detection.skeleton.bones[bone_idx].end_point
+                        parent_to_child = R.from_quat(
+                            [
                                 detection.pose.orientation.x,
                                 detection.pose.orientation.y,
                                 detection.pose.orientation.z,
                                 detection.pose.orientation.w,
-                            ),
+                            ]
+                        ).inv().as_matrix() @ np.array(
+                            [
+                                child_point.x - parent_point.x,
+                                child_point.y - parent_point.y,
+                                child_point.z - parent_point.z,
+                            ]
+                        )  # cause the bone is in the camera frame
+
+                        # broadcast bone pose in tree structure
+                        self.tf_broadcaster.sendTransform(
+                            (parent_to_child[0], parent_to_child[1], parent_to_child[2]),
+                            (0, 0, 0, 1),
                             rospy.Time.now(),
-                            detection.label + "_" + str(i) + "/" + self.keypoint_names[i],
-                            msg.header.frame_id,
+                            detection.label + "/" + child_name,
+                            detection.label + "/" + parent_name,
                         )
-                except (tf.LookupException, tf.ConnectivityException, tf.ExtrapolationException) as e:
+                except (
+                    tf.LookupException,
+                    tf.ConnectivityException,
+                    tf.ExtrapolationException,
+                ) as e:
                     rospy.logerr(e)
 
 

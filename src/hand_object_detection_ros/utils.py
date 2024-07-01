@@ -1,4 +1,5 @@
 import rospkg
+import torch
 import numpy as np
 import cv2
 import pyrender
@@ -335,9 +336,11 @@ def load_hamer(checkpoint_path, config_path, img_size, focal_length):
 
 def load_hmr2(checkpoint_path, img_size, focal_length):
     from pathlib import Path
-    from hmr2.configs import get_config
-    from hmr2.models import check_smpl_exists
+    from hmr2.configs import get_config, CACHE_DIR_4DHUMANS
+    from hmr2.models import check_smpl_exists, download_models
     from hmr2.models.hmr2 import HMR2
+
+    download_models(CACHE_DIR_4DHUMANS)
 
     model_cfg = str(Path(checkpoint_path).parent.parent / "model_config.yaml")
     model_cfg = get_config(model_cfg, update_cachedir=True)
@@ -461,16 +464,24 @@ class Renderer(object):
 
         return nodes
 
-
-def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000.0):
+def cam_crop_to_full(cam_bbox, box_center, box_size, img_size, focal_length=5000.):
     # Convert cam_bbox to full image
-    img_w, img_h = img_size
+    img_w, img_h = img_size[:, 0], img_size[:, 1]
     cx, cy, b = box_center[:, 0], box_center[:, 1], box_size
-    w_2, h_2 = img_w / 2.0, img_h / 2.0
+    w_2, h_2 = img_w / 2., img_h / 2.
     bs = b * cam_bbox[:, 0] + 1e-9
     tz = 2 * focal_length / bs
     tx = (2 * (cx - w_2) / bs) + cam_bbox[:, 1]
     ty = (2 * (cy - h_2) / bs) + cam_bbox[:, 2]
-    # full_cam = torch.stack([tx, ty, tz], dim=-1)
-    full_cam = np.stack([tx, ty, tz], axis=-1)
+    full_cam = torch.stack([tx, ty, tz], dim=-1)
     return full_cam
+
+def recursive_to(x, target: torch.device):
+    if isinstance(x, dict):
+        return {k: recursive_to(v, target) for k, v in x.items()}
+    elif isinstance(x, torch.Tensor):
+        return x.to(target)
+    elif isinstance(x, list):
+        return [recursive_to(i, target) for i in x]
+    else:
+        return x

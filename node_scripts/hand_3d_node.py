@@ -65,35 +65,6 @@ class Hand3DNode(object):
             z_cam = depth
 
             try:
-                # Create PoseArray message and send transform of predicted hand pose without depth calibration
-                # publish wrist pose first
-                self.tf_broadcaster.sendTransform(
-                    (detection.pose.position.x, detection.pose.position.y, detection.pose.position.z),
-                    (
-                        detection.pose.orientation.x,
-                        detection.pose.orientation.y,
-                        detection.pose.orientation.z,
-                        detection.pose.orientation.w,
-                    ),
-                    rospy.Time.now(),
-                    detection.label + "_" + MANO_KEYPOINT_NAMES[0],
-                    camera_frame,
-                )
-                for i, bone in enumerate(detection.skeleton.bones):
-                    # Broadcast keypoints in the camera frame
-                    self.tf_broadcaster.sendTransform(
-                        (bone.end_point.x, bone.end_point.y, bone.end_point.z),
-                        (
-                            detection.pose.orientation.x,
-                            detection.pose.orientation.y,
-                            detection.pose.orientation.z,
-                            detection.pose.orientation.w,
-                        ),
-                        rospy.Time.now(),
-                        detection.label + "_" + MANO_KEYPOINT_NAMES[i + 1],
-                        camera_frame,
-                    )
-
                 # Calibrate wrist pose using real 3D coordinates of wrist
                 pose_msg = Pose()  # wrist pose
                 pose_msg.position.x = x_cam * self.scale

@@ -8,7 +8,7 @@ import numpy as np
 import cv2
 from pyvirtualdisplay import Display
 from scipy.spatial.transform import Rotation as R
-from geometry_msgs.msg import Pose, Point, PoseArray
+from geometry_msgs.msg import Pose, Point
 from jsk_recognition_msgs.msg import Segment, HumanSkeleton
 
 # utils and constants
@@ -17,6 +17,8 @@ from hand_object_detection_ros.utils import (
     draw_axis,
     load_hamer,
     load_hmr2,
+    recursive_to,
+    cam_crop_to_full,
     MANO_JOINTS_CONNECTION,
     MANO_CONNECTION_NAMES,
     SMPL_JOINTS_CONNECTION,
@@ -37,17 +39,11 @@ import mocap_utils.demo_utils as demo_utils
 from handmocap.hand_mocap_api import HandMocap as FrankMocapHand
 
 # hamer
-from hamer.utils import recursive_to
 from hamer.datasets.vitdet_dataset import ViTDetDataset as HamerViTDetDataset
-from hamer.utils.renderer import cam_crop_to_full
 
 # 4DHuman
-from hmr2.configs import CACHE_DIR_4DHUMANS
-from hmr2.models import HMR2, download_models, DEFAULT_CHECKPOINT
-from hmr2.utils import recursive_to
+from hmr2.models import DEFAULT_CHECKPOINT
 from hmr2.datasets.vitdet_dataset import ViTDetDataset as HMR2ViTDetDataset
-from hmr2.datasets.vitdet_dataset import DEFAULT_MEAN, DEFAULT_STD
-# from hmr2.utils.renderer import Renderer, cam_crop_to_full
 
 
 class MocapModelFactory:
@@ -360,24 +356,6 @@ class HamerModel(MocapModelBase):
                         alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
                     ).astype(np.uint8)
 
-            # # project 3d keypoints to 2d and draw
-            # for i, keypoints in enumerate(pred_keypoints_2d):
-            #     for j, keypoint in enumerate(keypoints):
-            #         point_x, point_y = self.camera_model.project3dToPixel(pred_keypoints_3d[i][j])
-            #         cv2.circle(vis_im, (int(point_x), int(point_y)), 5, (0, 255, 0), -1)
-
-            pose_array = PoseArray()
-            for i, keypoints in enumerate(pred_keypoints_3d):
-                for j, keypoint in enumerate(keypoints):
-                    pose = Pose()
-                    pose.position.x = keypoint[0]
-                    pose.position.y = keypoint[1]
-                    pose.position.z = keypoint[2]
-                    pose.orientation.x = quats[i][1]
-                    pose.orientation.y = quats[i][2]
-                    pose.orientation.z = quats[i][3]
-                    pose.orientation.w = quats[i][0]
-                    pose_array.poses.append(pose)
 
         # return detection_results, pose_array, vis_im
         return detection_results, vis_im
@@ -544,13 +522,6 @@ class HMR2Model(MocapModelBase):
                 for i, keypoints in enumerate(pred_keypoints_2d):
                     for j, keypoint in enumerate(keypoints):
                         cv2.circle(vis_im, (int(keypoint[0]), int(keypoint[1])), 5, (0, 255, 0), -1)
-
-            # # project 3d keypoints to 2d and draw
-            # for i, keypoints in enumerate(pred_keypoints_2d):
-            #     for j, keypoint in enumerate(keypoints):
-            #         point_x, point_y = self.camera_model.project3dToPixel(pred_keypoints_3d[i][j])
-            #         cv2.circle(vis_im, (int(point_x), int(point_y)), 5, (0, 255, 0), -1)
-            #
 
         # return detection_results, pose_array, vis_im
         return detection_results, vis_im
