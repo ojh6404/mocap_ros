@@ -1,0 +1,69 @@
+<launch>
+  <arg name="input_image" default="/kinect_head/rgb/image_rect_color"/>
+  <arg name="camera_info" default="/kinect_head/rgb/camera_info"/>
+  <arg name="decompress" default="true" />
+  <arg name="publish_tf" default="true" />
+  <arg name="device" default="cuda:0" /> <!-- cpu or cuda -->
+  <arg name="threshold" default="0.9" />
+  <arg name="with_mocap" default="true" />
+  <arg name="body_detector_model" default="yolo" />  <!-- yolo, ... -->
+  <arg name="hand_detector_model" default="mediapipe_hand" />  <!-- hand_object_detector, mediapipe_hand ... -->
+  <arg name="body_mocap_model" default="4d-human" />  <!-- frankmocap_body, 4d-human, ... -->
+  <arg name="hand_mocap_model" default="hamer" />  <!-- frankmocap_hand, acr, hamer, ... -->
+  <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
+  <arg name="render_type" default="opengl" />  <!-- for frankmocap, opengl or pytorch3d -->
+  <arg name="rescale_factor" default="2.0" />  <!-- for 4d-human and hamer -->
+  <arg name="slop" default="0.3" />
+  <arg name="margin" default="10" /> <!-- cpu or cuda -->
+
+  <arg name="_input_image" value="$(arg input_image)" unless="$(arg decompress)" />
+  <arg name="_input_image" value="/detection_node/input_image" if="$(arg decompress)" />
+
+  <!-- Image Decompress -->
+  <node name="image_decompresser"
+        pkg="image_transport" type="republish"
+        args="compressed raw" respawn="true" if="$(arg decompress)">
+    <remap from="in" to="$(arg input_image)"/>
+    <remap from="out" to="$(arg _input_image)"/>
+  </node>
+
+  <!-- body_detection node -->
+  <node name="body_detection_node"
+        pkg="mocap_ros" type="detection_node.py"
+        output="screen" >
+    <remap from="~input_image" to="$(arg _input_image)" />
+    <remap from="~camera_info" to="$(arg camera_info)" />
+    <rosparam subst_value="true" >
+        device: $(arg device)
+        publish_tf: $(arg publish_tf)
+        threshold: $(arg threshold)
+        with_mocap: $(arg with_mocap)
+        detector_model: $(arg body_detector_model)
+        mocap_model: $(arg body_mocap_model)
+        visualize: $(arg visualize)
+        render_type: $(arg render_type)
+        rescale_factor: $(arg rescale_factor)
+        margin: $(arg margin)
+    </rosparam>
+  </node>
+
+  <!-- hand_detection node -->
+  <node name="hand_detection_node"
+        pkg="mocap_ros" type="detection_node.py"
+        output="screen" >
+    <remap from="~input_image" to="$(arg _input_image)" />
+    <remap from="~camera_info" to="$(arg camera_info)" />
+    <rosparam subst_value="true" >
+        device: $(arg device)
+        publish_tf: $(arg publish_tf)
+        threshold: $(arg threshold)
+        with_mocap: $(arg with_mocap)
+        detector_model: $(arg hand_detector_model)
+        mocap_model: $(arg hand_mocap_model)
+        visualize: $(arg visualize)
+        render_type: $(arg render_type)
+        rescale_factor: $(arg rescale_factor)
+        margin: $(arg margin)
+    </rosparam>
+  </node>
+</launch>
