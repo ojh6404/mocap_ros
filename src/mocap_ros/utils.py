@@ -337,7 +337,7 @@ def load_hamer(checkpoint_path, config_path, img_size, focal_length):
 def load_hmr2(checkpoint_path, img_size, focal_length):
     from pathlib import Path
     from hmr2.configs import get_config, CACHE_DIR_4DHUMANS
-    from hmr2.models import check_smpl_exists, download_models
+    from hmr2.models import download_models
     from hmr2.models.hmr2 import HMR2
 
     download_models(CACHE_DIR_4DHUMANS)
@@ -356,6 +356,41 @@ def load_hmr2(checkpoint_path, img_size, focal_length):
         ), f"MODEL.IMAGE_SIZE ({model_cfg.MODEL.IMAGE_SIZE}) should be 256 for ViT backbone"
         model_cfg.MODEL.BBOX_SHAPE = [192, 256]
         model_cfg.freeze()
+
+
+    def check_smpl_exists():
+        import os
+        candidates = [
+            f'{CACHE_DIR_4DHUMANS}/data/smpl/SMPL_NEUTRAL.pkl',
+            rospkg.RosPack().get_path("mocap_ros") + "/4D-Humans/data/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl",
+        ]
+        candidates_exist = [os.path.exists(c) for c in candidates]
+        if not any(candidates_exist):
+            raise FileNotFoundError(f"SMPL model not found. Please download it from https://smplify.is.tue.mpg.de/ and place it at {candidates[1]}")
+
+        def convert_pkl(old_pkl, new_pkl):
+            """
+            Convert a Python 2 pickle to Python 3
+            """
+            import dill
+            import pickle
+
+            # Convert Python 2 "ObjectType" to Python 3 object
+            dill._dill._reverse_typemap["ObjectType"] = object
+
+            # Open the pickle using latin1 encoding
+            with open(old_pkl, "rb") as f:
+                loaded = pickle.load(f, encoding="latin1")
+
+            # Re-save as Python 3 pickle
+            with open(new_pkl, "wb") as outfile:
+                pickle.dump(loaded, outfile)
+
+        # Code edxpects SMPL model at CACHE_DIR_4DHUMANS/data/smpl/SMPL_NEUTRAL.pkl. Copy there if needed
+        if (not candidates_exist[0]) and candidates_exist[1]:
+            convert_pkl(candidates[1], candidates[0])
+
+        return True
 
     # Ensure SMPL model exists
     check_smpl_exists()
