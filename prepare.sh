@@ -11,7 +11,7 @@ export FORCE_CUDA=1
 cd frankmocap && python3 -m pip install -r docs/requirements.txt
 bash scripts/install_frankmocap.sh
 mkdir -p extra_data/smpl
-gdown https://drive.google.com/uc\?id\=1Vx4tRkTpi0M4awzb1AiTTaosOMEuK2O5 -O extra_data/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
+gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O extra_data/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
 gdown https://drive.google.com/uc\?id\=1zG9X15BGX3ywxn4ZgBUCJSGyNi7m2VWC -O extra_data/smpl/SMPLX_NEUTRAL.pkl
 
 # install Arbitrary-Hands-3D-Reconstruction
@@ -34,3 +34,6 @@ rm -rf _DATA/vitpose_ckpts
 cd ../4D-Humans && python3 -m pip install -e .[all]
 mkdir data && gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O data/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
 python3 -m pip install -U PyOpenGL PyOpenGL_accelerate numpy mediapipe supervision ultralytics
+
+# Ensure package install for ROS
+python3 -m pip install rospkg gnupg pycryptodomex
