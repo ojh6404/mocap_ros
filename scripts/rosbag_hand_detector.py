@@ -123,7 +123,7 @@ def main(args):
             detections.header = msg.header
             vis_im_msg = bridge.cv2_to_compressed_imgmsg(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), dst_format="jpeg")
             vis_im_msg.header = msg.header
-            outbag.write("/mocap/debug_image/compressed", vis_im_msg, msg.header.stamp)
+            outbag.write("/mocap/detection_image/compressed", vis_im_msg, msg.header.stamp)
 
             # Process Mocap
             detections, vis_im = mocap_model.predict(detections, image, vis_im)
@@ -260,7 +260,7 @@ def main(args):
                                 pose_msg.orientation.z = transform.transform.rotation.z
                                 pose_msg.orientation.w = transform.transform.rotation.w
                                 pose_array_msg.poses.append(pose_msg)
-                            outbag.write("/" + detection.label + "/keypoints", pose_array_msg, t)
+                            outbag.write("/mocap/" + detection.label + "/keypoints", pose_array_msg, t)
 
                             # create new grasp pose which is the average of thumb and index finger keypoints
                             # avg position of thumb and index finger keypoints is the grasp pose in target frame
@@ -338,7 +338,7 @@ def main(args):
                             grasp_pose_msg.pose.orientation.y = grasp_orientation[2]
                             grasp_pose_msg.pose.orientation.z = grasp_orientation[3]
                             grasp_pose_msg.pose.orientation.w = grasp_orientation[0]
-                            outbag.write("/" + detection.label + "/grasp_pose", grasp_pose_msg, t)
+                            outbag.write("/mocap/" + detection.label + "/grasp_pose", grasp_pose_msg, t)
 
                         except (
                             tf2_ros.LookupException,
