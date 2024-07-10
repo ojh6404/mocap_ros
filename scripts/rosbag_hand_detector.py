@@ -17,7 +17,7 @@ import rosbag
 import message_filters
 import tf2_ros
 from tf2_msgs.msg import TFMessage
-from sensor_msgs.msg import CameraInfo, CompressedImage
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
 from geometry_msgs.msg import Pose, PoseStamped, PoseArray, TransformStamped
 from image_geometry import PinholeCameraModel
 from cv_bridge import CvBridge
@@ -100,6 +100,12 @@ def main(args):
             "/kinect_head/rgb/camera_info",
         ]
         msgs = [CompressedImage, CameraInfo]
+        if args.calibrate:
+            topics += [
+                "/kinect_head/depth_registered/image_raw",
+            ]
+            msgs += [Image]
+
         subscribers = {topic: message_filters.Subscriber(topic, msg) for topic, msg in zip(topics, msgs)}
         ts = message_filters.ApproximateTimeSynchronizer(
             subscribers.values(),
@@ -108,7 +114,12 @@ def main(args):
             allow_headerless=False,
         )
 
-        def callback(img_msg, cam_info_msg):
+        def callback(*msgs):
+            img_msg = msgs[0]
+            cam_info_msg = msgs[1]
+            if args.calibrate:
+                depth_msg = msgs[2]
+                depth = bridge.imgmsg_to_cv2(depth_msg, desired_encoding="32FC1")
             image = (
                 bridge.compressed_imgmsg_to_cv2(img_msg, desired_encoding="bgr8")
                 if "Compressed" in img_msg._type
@@ -130,6 +141,42 @@ def main(args):
             detections.header = msg.header
             vis_im_msg = bridge.cv2_to_compressed_imgmsg(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), dst_format="jpeg")
             vis_im_msg.header = msg.header
+
+            if args.calibrate:
+                for detection in detections.detections:
+                    pred_point_3d = (
+                        detection.pose.position.x,
+                        detection.pose.position.y,
+                        detection.pose.position.z,
+                    ) # predicted 3d wrist point in camera frame
+                    pred_point_2d = camera_model.project3dToPixel(pred_point_3d)
+                    # Clip
+                    pred_point_2d = (
+                        min(max(pred_point_2d[0], 0), depth.shape[1] - 1),
+                        min(max(pred_point_2d[1], 0), depth.shape[0] - 1),
+                    )
+                    depth_z = depth[int(pred_point_2d[1]), int(pred_point_2d[0])]
+                    if np.isnan(depth_z) or (depth_z == 0.0):
+                        continue
+
+                    # Calculate real 3D point in camera frame using depth
+                    x_cam = (pred_point_2d[0] - camera_model.cx()) * depth_z / camera_model.fx() * args.scale
+                    y_cam = (pred_point_2d[1] - camera_model.cy()) * depth_z / camera_model.fy() * args.scale
+                    z_cam = depth_z * args.scale
+
+                    # Calibrate skeleton keypoints with wrist pose
+                    detection.pose.position.x = x_cam
+                    detection.pose.position.y = y_cam
+                    detection.pose.position.z = z_cam
+                    for bone in detection.skeleton.bones:
+                        bone.start_point.x += x_cam - pred_point_3d[0]
+                        bone.start_point.y += y_cam - pred_point_3d[1]
+                        bone.start_point.z += z_cam  - pred_point_3d[2]
+                        bone.end_point.x += x_cam - pred_point_3d[0]
+                        bone.end_point.y += y_cam - pred_point_3d[1]
+                        bone.end_point.z += z_cam - pred_point_3d[2]
+
+            # Write detections and visualization image
             outbag.write("/mocap/hand_detections", detections, msg.header.stamp)
             outbag.write("/mocap/mocap_image/compressed", vis_im_msg, msg.header.stamp)
 
@@ -359,6 +406,8 @@ if __name__ == "__main__":
     parser.add_argument("-d", "--detector_model", type=str, default="hand_object_detector", help="detector model")
     parser.add_argument("-m", "--mocap_model", type=str, default="hamer", help="mocap model")
     parser.add_argument("-f", "--focal_length", type=float, default=525.0, help="focal length of the camera")
+    parser.add_argument("-c", "--calibrate", action="store_true", help="calibrate depth with real depth")
+    parser.add_argument("-s", "--scale", type=float, default=0.001, help="scale factor for depth calibration")
     parser.add_argument(
         "-sf", "--source_frame", type=str, default="head_mount_kinect_rgb_optical_frame", help="source frame"
     )
