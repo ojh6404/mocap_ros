@@ -21,6 +21,11 @@ HAMER_CHECKPOINT_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/checkpoints/hamer.ckpt"
 HAMER_CONFIG_PATH = HAMER_ROOT + "/_DATA/hamer_ckpts/model_config.yaml"
 HAND_COLOR = (0.65098039, 0.74117647, 0.85882353)
 
+# optical frame to world frame
+OPTICAL_TO_WORLD = np.array([[0, -1, 0],
+                             [0, 0, -1],
+                             [1, 0, 0]])
+
 # hand constants
 MANO_KEYPOINT_NAMES = [
     "wrist",
