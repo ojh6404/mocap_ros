@@ -36,5 +36,8 @@ cd ../4D-Humans && python3 -m pip install -e .[all]
 mkdir data && gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O data/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
 python3 -m pip install -U PyOpenGL PyOpenGL_accelerate numpy mediapipe supervision ultralytics
 
+# fix chumpy installation for latest python
+python3 -m pip install git+https://github.com/ojh6404/chumpy.git@patch-python3.11
+
 # Ensure package install for ROS
 python3 -m pip install rospkg gnupg pycryptodomex
