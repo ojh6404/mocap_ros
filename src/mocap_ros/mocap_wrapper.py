@@ -6,6 +6,7 @@ import sys
 import torch
 import numpy as np
 import cv2
+import supervision as sv
 from pyvirtualdisplay import Display
 from scipy.spatial.transform import Rotation as R
 from geometry_msgs.msg import Pose, Point
@@ -44,6 +45,10 @@ from hamer.datasets.vitdet_dataset import ViTDetDataset as HamerViTDetDataset
 # 4DHuman
 from hmr2.models import DEFAULT_CHECKPOINT
 from hmr2.datasets.vitdet_dataset import ViTDetDataset as HMR2ViTDetDataset
+
+
+BOX_ANNOTATOR = sv.BoxAnnotator()
+LABEL_ANNOTATOR = sv.LabelAnnotator()
 
 
 class MocapModelFactory:
@@ -212,8 +217,9 @@ class HamerModel(MocapModelBase):
                 height=self.img_size[1],
             )
 
-    def predict(self, detection_results, im, vis_im):
+    def predict(self, detection_results, im, detection_im=None):
         # im : BGR image
+        vis_im = cv2.cvtColor(im.copy(), cv2.COLOR_BGR2RGB)
         if detection_results.detections:
             boxes = np.array(
                 [
@@ -306,6 +312,19 @@ class HamerModel(MocapModelBase):
                 y_axis_rotated = rotation @ y_axis
                 z_axis_rotated = rotation @ z_axis
                 # visualize hand orientation
+                if detection_im is not None:
+                    vis_im = cv2.cvtColor(detection_im, cv2.COLOR_RGB2BGR)
+                else:
+                    # Draw BBOX and LABEL with annotator
+                    vis_im = im.copy()
+                    vis_detections = sv.Detections(
+                        xyxy=boxes,
+                        class_id=right,
+                    )
+                    vis_im = BOX_ANNOTATOR.annotate(scene=vis_im, detections=vis_detections)
+                    vis_im = LABEL_ANNOTATOR.annotate(
+                        scene=vis_im, detections=vis_detections, labels=["right_hand" if class_id == 1 else "left_hand" for class_id in right]
+                    )
                 vis_im = draw_axis(vis_im, hand_origin[i], x_axis_rotated, (0, 0, 255))  # x: red
                 vis_im = draw_axis(vis_im, hand_origin[i], y_axis_rotated, (0, 255, 0))  # y: green
                 vis_im = draw_axis(vis_im, hand_origin[i], z_axis_rotated, (255, 0, 0))  # z: blue
@@ -353,10 +372,9 @@ class HamerModel(MocapModelBase):
                     rgb = rgba[..., :3].astype(np.float32)
                     alpha = rgba[..., 3].astype(np.float32) / 255.0
                     vis_im = (
-                        alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(im, cv2.COLOR_BGR2RGB)
+                        alpha[..., None] * rgb + (1 - alpha[..., None]) * cv2.cvtColor(vis_im, cv2.COLOR_BGR2RGB)
                     ).astype(np.uint8)
 
-        # return detection_results, pose_array, vis_im
         return detection_results, vis_im
 
     def __del__(self):
