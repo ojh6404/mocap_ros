@@ -3,12 +3,13 @@
 git submodule update --init --recursive
 python3 -m pip install -U pip gdown pyvirtualdisplay
 python3 -m pip install -U "setuptools<70"
-python3 -m pip install torch==2.2.2 torchvision==0.17.2 torchaudio==2.2.2 --index-url https://download.pytorch.org/whl/cu121
+python3 -m pip install torch==2.3.1 torchvision==0.18.1 torchaudio==2.3.1 --index-url https://download.pytorch.org/whl/cu121
 export FORCE_CUDA=1
-# python3 -m pip install git+https://github.com/facebookresearch/pytorch3d.git
+python3 -m pip install git+https://github.com/facebookresearch/pytorch3d.git
 
 # install hand_object_detector and frankmocap
 cd frankmocap && python3 -m pip install -r docs/requirements.txt
+rm -rf detectors/hand_object_detector/lib/pycocotools && rm -rf detectors/hand_object_detector/lib/datasets
 bash scripts/install_frankmocap.sh
 mkdir -p extra_data/smpl
 gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O extra_data/smpl/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl
