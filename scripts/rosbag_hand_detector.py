@@ -17,15 +17,19 @@ import rosbag
 import message_filters
 import tf2_ros
 from tf2_msgs.msg import TFMessage
-from sensor_msgs.msg import CameraInfo, CompressedImage, Image
-from geometry_msgs.msg import Pose, PoseStamped, PoseArray, TransformStamped
-from image_geometry import PinholeCameraModel
 from cv_bridge import CvBridge
+from image_geometry import PinholeCameraModel
+from sensor_msgs.msg import CameraInfo, CompressedImage, Image
+from geometry_msgs.msg import Pose, PoseStamped, PoseArray, TransformStamped, Point, Quaternion
+from jsk_recognition_msgs.msg import Rect, Segment, HumanSkeleton
+from mocap_ros.msg import Detection, DetectionArray, Mocap, MocapArray
 
 from motion_capture.detector import DetectionModelFactory
 from motion_capture.mocap import MocapModelFactory
 from motion_capture.utils.utils import (
     MANO_KEYPOINT_NAMES,
+    MANO_JOINTS_CONNECTION,
+    MANO_CONNECTION_NAMES,
     axes_to_quaternion,
 )
 
@@ -131,24 +135,78 @@ def main(args):
 
             # Detect Hands
             detections, vis_im = detection_model.predict(image)
-            detections.header = msg.header
-            vis_im_msg = bridge.cv2_to_compressed_imgmsg(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), dst_format="jpeg")
+
+            # to DetectionArray msg
+            detection_array = DetectionArray(header=msg.header)
+            detection_array.detections = [
+                Detection(
+                    label=detection.label,
+                    score=detection.score,
+                    rect=Rect(
+                        x=int(detection.rect[0]),
+                        y=int(detection.rect[1]),
+                        width=int(detection.rect[2] - detection.rect[0]),
+                        height=int(detection.rect[3] - detection.rect[1]),
+                    ),
+                )
+                for detection in detections
+            ]
+            vis_im_msg = bridge.cv2_to_compressed_imgmsg(vis_im, dst_format="jpeg")
             vis_im_msg.header = msg.header
             outbag.write("/mocap/detection_image/compressed", vis_im_msg, msg.header.stamp)
 
             # Process Mocap
-            detections, vis_im = mocap_model.predict(detections, image, vis_im)
-            detections.header = msg.header
-            vis_im_msg = bridge.cv2_to_compressed_imgmsg(cv2.cvtColor(vis_im, cv2.COLOR_RGB2BGR), dst_format="jpeg")
+            mocaps, vis_im = mocap_model.predict(detections, image, vis_im)
+            # to MocapArray msg
+            mocap_array = MocapArray(header=msg.header)
+            mocap_array.mocaps = [
+                Mocap(detection=detection_array.detections[i]) for i in range(len(detection_array.detections))
+            ]
+
+            for i in range(len(mocaps)):
+                skeleton = HumanSkeleton()
+                skeleton.bone_names = []
+                skeleton.bones = []
+                for j, (start, end) in enumerate(MANO_JOINTS_CONNECTION):
+                    bone = Segment()
+                    bone.start_point = Point(
+                        x=mocaps[i].keypoints[start][0],
+                        y=mocaps[i].keypoints[start][1],
+                        z=mocaps[i].keypoints[start][2],
+                    )
+                    bone.end_point = Point(
+                        x=mocaps[i].keypoints[end][0],
+                        y=mocaps[i].keypoints[end][1],
+                        z=mocaps[i].keypoints[end][2],
+                    )
+                    skeleton.bones.append(bone)
+                    skeleton.bone_names.append(MANO_CONNECTION_NAMES[j])
+
+                mocap_array.mocaps[i].pose = Pose(
+                    position=Point(
+                        x=mocaps[i].position[0],
+                        y=mocaps[i].position[1],
+                        z=mocaps[i].position[2],
+                    ),
+                    orientation=Quaternion(
+                        x=mocaps[i].orientation[0],
+                        y=mocaps[i].orientation[1],
+                        z=mocaps[i].orientation[2],
+                        w=mocaps[i].orientation[3],
+                    ),
+                )
+                mocap_array.mocaps[i].skeleton = skeleton
+
+            vis_im_msg = bridge.cv2_to_compressed_imgmsg(vis_im, dst_format="jpeg")
             vis_im_msg.header = msg.header
 
             if args.calibrate:
-                for detection in detections.detections:
+                for mocap in mocap_array.mocaps:
                     pred_point_3d = (
-                        detection.pose.position.x,
-                        detection.pose.position.y,
-                        detection.pose.position.z,
-                    ) # predicted 3d wrist point in camera frame
+                        mocap.pose.position.x,
+                        mocap.pose.position.y,
+                        mocap.pose.position.z,
+                    )  # predicted 3d wrist point in camera frame
                     pred_point_2d = camera_model.project3dToPixel(pred_point_3d)
                     # Clip
                     pred_point_2d = (
@@ -165,19 +223,19 @@ def main(args):
                     z_cam = depth_z * args.scale
 
                     # Calibrate skeleton keypoints with wrist pose
-                    detection.pose.position.x = x_cam
-                    detection.pose.position.y = y_cam
-                    detection.pose.position.z = z_cam
-                    for bone in detection.skeleton.bones:
+                    mocap.pose.position.x = x_cam
+                    mocap.pose.position.y = y_cam
+                    mocap.pose.position.z = z_cam
+                    for bone in mocap.skeleton.bones:
                         bone.start_point.x += x_cam - pred_point_3d[0]
                         bone.start_point.y += y_cam - pred_point_3d[1]
-                        bone.start_point.z += z_cam  - pred_point_3d[2]
+                        bone.start_point.z += z_cam - pred_point_3d[2]
                         bone.end_point.x += x_cam - pred_point_3d[0]
                         bone.end_point.y += y_cam - pred_point_3d[1]
                         bone.end_point.z += z_cam - pred_point_3d[2]
 
             # Write detections and visualization image
-            outbag.write("/mocap/hand_detections", detections, msg.header.stamp)
+            outbag.write("/mocap/hand_mocaps", mocap_array, msg.header.stamp)
             outbag.write("/mocap/mocap_image/compressed", vis_im_msg, msg.header.stamp)
 
             pose_array_msg = PoseArray()
@@ -189,21 +247,21 @@ def main(args):
             keypoints_msg.header.frame_id = camera_frame
             keypoints_msg.header.stamp = img_msg.header.stamp
 
-            for detection in detections.detections:
+            for mocap in mocap_array.mocaps:
                 # Write hand pose in camera frame
                 try:
                     tf_msg = TFMessage()
                     tf_transform = TransformStamped()
                     tf_transform.header.stamp = t
                     tf_transform.header.frame_id = camera_frame
-                    tf_transform.child_frame_id = detection.label + "/" + keypoint_names[0]
-                    tf_transform.transform.translation.x = detection.pose.position.x
-                    tf_transform.transform.translation.y = detection.pose.position.y
-                    tf_transform.transform.translation.z = detection.pose.position.z
-                    tf_transform.transform.rotation.x = detection.pose.orientation.x
-                    tf_transform.transform.rotation.y = detection.pose.orientation.y
-                    tf_transform.transform.rotation.z = detection.pose.orientation.z
-                    tf_transform.transform.rotation.w = detection.pose.orientation.w
+                    tf_transform.child_frame_id = mocap.detection.label + "/" + keypoint_names[0]
+                    tf_transform.transform.translation.x = mocap.pose.position.x
+                    tf_transform.transform.translation.y = mocap.pose.position.y
+                    tf_transform.transform.translation.z = mocap.pose.position.z
+                    tf_transform.transform.rotation.x = mocap.pose.orientation.x
+                    tf_transform.transform.rotation.y = mocap.pose.orientation.y
+                    tf_transform.transform.rotation.z = mocap.pose.orientation.z
+                    tf_transform.transform.rotation.w = mocap.pose.orientation.w
                     tf_msg.transforms.append(tf_transform)
                     outbag.write("/tf", tf_msg, t)
                 except (tf2_ros.LookupException, tf2_ros.ConnectivityException, tf2_ros.ExtrapolationException) as e:
@@ -211,19 +269,19 @@ def main(args):
                     continue
 
                 # Write keypoints in each bone frame
-                for bone_name in detection.skeleton.bone_names:
+                for bone_name in mocap.skeleton.bone_names:
                     parent_name = bone_name.split("->")[0]
                     child_name = bone_name.split("->")[1]
-                    bone_idx = detection.skeleton.bone_names.index(bone_name)
+                    bone_idx = mocap.skeleton.bone_names.index(bone_name)
 
-                    parent_point = detection.skeleton.bones[bone_idx].start_point
-                    child_point = detection.skeleton.bones[bone_idx].end_point
+                    parent_point = mocap.skeleton.bones[bone_idx].start_point
+                    child_point = mocap.skeleton.bones[bone_idx].end_point
                     parent_to_child = R.from_quat(
                         [
-                            detection.pose.orientation.x,
-                            detection.pose.orientation.y,
-                            detection.pose.orientation.z,
-                            detection.pose.orientation.w,
+                            mocap.pose.orientation.x,
+                            mocap.pose.orientation.y,
+                            mocap.pose.orientation.z,
+                            mocap.pose.orientation.w,
                         ]
                     ).inv().as_matrix() @ np.array(
                         [
@@ -235,8 +293,8 @@ def main(args):
                     try:
                         tf_transform = TransformStamped()
                         tf_transform.header.stamp = t
-                        tf_transform.header.frame_id = detection.label + "/" + parent_name
-                        tf_transform.child_frame_id = detection.label + "/" + child_name
+                        tf_transform.header.frame_id = mocap.detection.label + "/" + parent_name
+                        tf_transform.child_frame_id = mocap.detection.label + "/" + child_name
                         tf_transform.transform.translation.x = parent_to_child[0]
                         tf_transform.transform.translation.y = parent_to_child[1]
                         tf_transform.transform.translation.z = parent_to_child[2]
@@ -281,14 +339,13 @@ def main(args):
                 else:
                     tf_buffer.set_transform(msg_tf, "default_authority")
 
-
     # Write keypoints and grasp pose in target frame
     with rosbag.Bag(args.output, "w") as outbag:
         with rosbag.Bag(tmpbag, "r") as input_bag:
             for topic, msg, t in tqdm(input_bag.read_messages()):
                 outbag.write(topic, msg, t)
-                if topic == "/mocap/hand_detections":
-                    for detection in msg.detections:
+                if topic == "/mocap/hand_mocaps":
+                    for mocap in msg.mocaps:
                         try:
                             # Write hand keypoints in target frame
                             pose_array_msg = PoseArray()
@@ -296,7 +353,7 @@ def main(args):
                             pose_array_msg.header.frame_id = args.target_frame
                             for keypoint in MANO_KEYPOINT_NAMES:
                                 transform = tf_buffer.lookup_transform(
-                                    args.target_frame, detection.label + "/" + keypoint, t
+                                    args.target_frame, mocap.detection.label + "/" + keypoint, t
                                 )
                                 pose_msg = Pose()
                                 pose_msg.position.x = transform.transform.translation.x
@@ -307,7 +364,7 @@ def main(args):
                                 pose_msg.orientation.z = transform.transform.rotation.z
                                 pose_msg.orientation.w = transform.transform.rotation.w
                                 pose_array_msg.poses.append(pose_msg)
-                            outbag.write("/mocap/" + detection.label + "/keypoints", pose_array_msg, t)
+                            outbag.write("/mocap/" + mocap.detection.label + "/keypoints", pose_array_msg, t)
 
                             # create new grasp pose which is the average of thumb and index finger keypoints
                             # avg position of thumb and index finger keypoints is the grasp pose in target frame
@@ -344,7 +401,7 @@ def main(args):
                             x_axis = (thumb2to3 + index2to3) / 2
                             x_axis = x_axis / np.linalg.norm(x_axis)
 
-                            if detection.label == "right_hand":
+                            if mocap.detection.label == "right_hand":
                                 y_axis = np.array(
                                     [
                                         thumb3_keypoint.position.x - index3_keypoint.position.x,
@@ -385,7 +442,7 @@ def main(args):
                             grasp_pose_msg.pose.orientation.y = grasp_orientation[2]
                             grasp_pose_msg.pose.orientation.z = grasp_orientation[3]
                             grasp_pose_msg.pose.orientation.w = grasp_orientation[0]
-                            outbag.write("/mocap/" + detection.label + "/grasp_pose", grasp_pose_msg, t)
+                            outbag.write("/mocap/" + mocap.detection.label + "/grasp_pose", grasp_pose_msg, t)
 
                         except (
                             tf2_ros.LookupException,
