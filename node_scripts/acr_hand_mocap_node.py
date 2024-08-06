@@ -15,7 +15,7 @@ from geometry_msgs.msg import Pose, Point
 from jsk_recognition_msgs.msg import Segment, HumanSkeleton
 from mocap_ros.msg import HandDetection, HandDetectionArray
 
-ACR_PATH = rospkg.RosPack().get_path("mocap_ros") + "/Arbitrary-Hands-3D-Reconstruction"
+ACR_PATH = rospkg.RosPack().get_path("mocap_ros") + "/motion_capture/third_party/Arbitrary-Hands-3D-Reconstruction"
 sys.path.insert(0, ACR_PATH)
 
 import acr.config as config
@@ -30,7 +30,7 @@ if args().model_precision == "fp16":
 from acr.model import ACR as ACR_v1
 from acr.mano_wrapper import MANOWrapper
 
-from utils import rotation_matrix_to_quaternion, draw_axis, MANO_JOINTS_CONNECTION
+from motion_capture.utils.utils import rotation_matrix_to_quaternion, draw_axis, MANO_JOINTS_CONNECTION
 
 
 class ACRHandMocapNode(object):

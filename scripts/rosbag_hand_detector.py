@@ -22,9 +22,9 @@ from geometry_msgs.msg import Pose, PoseStamped, PoseArray, TransformStamped
 from image_geometry import PinholeCameraModel
 from cv_bridge import CvBridge
 
-from mocap_ros.detector_wrapper import DetectionModelFactory
-from mocap_ros.mocap_wrapper import MocapModelFactory
-from mocap_ros.utils import (
+from motion_capture.detector import DetectionModelFactory
+from motion_capture.mocap import MocapModelFactory
+from motion_capture.utils.utils import (
     MANO_KEYPOINT_NAMES,
     axes_to_quaternion,
 )

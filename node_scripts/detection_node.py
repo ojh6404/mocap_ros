@@ -8,13 +8,19 @@ from scipy.spatial.transform import Rotation as R
 from cv_bridge import CvBridge
 from image_geometry import PinholeCameraModel
 from sensor_msgs.msg import Image, CameraInfo
-from mocap_ros.msg import MocapDetectionArray
+from geometry_msgs.msg import Point, Pose, Quaternion
+from jsk_recognition_msgs.msg import Rect, HumanSkeleton, Segment
+from mocap_ros.msg import Detection, DetectionArray, Mocap, MocapArray
 
-from mocap_ros.detector_wrapper import DetectionModelFactory
-from mocap_ros.mocap_wrapper import MocapModelFactory
-from mocap_ros.utils import (
-    SPIN_KEYPOINT_NAMES,
+from motion_capture.detector import DetectionModelFactory
+from motion_capture.mocap import MocapModelFactory
+from motion_capture.utils.utils import (
     MANO_KEYPOINT_NAMES,
+    MANO_JOINTS_CONNECTION,
+    MANO_CONNECTION_NAMES,
+    SPIN_KEYPOINT_NAMES,
+    SPIN_JOINTS_CONNECTION,
+    SPIN_CONNECTION_NAMES,
 )
 
 
@@ -68,6 +74,8 @@ class DetectionNode(object):
                     "device": self.device,
                 }
                 self.keypoint_names = MANO_KEYPOINT_NAMES
+                self.connection_names = MANO_CONNECTION_NAMES
+                self.joint_connections = MANO_JOINTS_CONNECTION
             elif self.mocap == "hamer":
                 self.mocap_config = {
                     "focal_length": self.camera_model.fx(),
@@ -77,6 +85,8 @@ class DetectionNode(object):
                     "device": self.device,
                 }
                 self.keypoint_names = MANO_KEYPOINT_NAMES
+                self.connection_names = MANO_CONNECTION_NAMES
+                self.joint_connections = MANO_JOINTS_CONNECTION
             elif self.mocap == "4d-human":
                 self.mocap_config = {
                     "focal_length": self.camera_model.fx(),
@@ -86,6 +96,8 @@ class DetectionNode(object):
                     "device": self.device,
                 }
                 self.keypoint_names = SPIN_KEYPOINT_NAMES
+                self.connection_names = SPIN_CONNECTION_NAMES
+                self.joint_connections = SPIN_JOINTS_CONNECTION
             else:
                 raise ValueError(f"Invalid mocap model: {self.mocap}")
 
@@ -94,7 +106,9 @@ class DetectionNode(object):
         self.init_model()
         self.sub = rospy.Subscriber("~input_image", Image, self.callback_image, queue_size=1, buff_size=2**24)
         self.pub_debug_image = rospy.Publisher("~debug_image", Image, queue_size=1)
-        self.pub_detections = rospy.Publisher("~detections", MocapDetectionArray, queue_size=1)
+        self.pub_detections = rospy.Publisher("~detections", DetectionArray, queue_size=1)
+        if self.with_mocap:
+            self.pub_mocaps = rospy.Publisher("~mocaps", MocapArray, queue_size=1)
 
     def init_model(self):
         self.detection_model = DetectionModelFactory.from_config(
@@ -109,51 +123,108 @@ class DetectionNode(object):
             )
 
     def callback_image(self, msg):
-        im = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
-        detections, vis_im = self.detection_model.predict(im)
-        detections.header = msg.header
+        image = self.bridge.imgmsg_to_cv2(msg, desired_encoding="bgr8")
+        detections, visualization = self.detection_model.predict(image)
+
+        # to DetectionArray msg
+        detection_array = DetectionArray(header=msg.header)
+        detection_array.detections = [
+            Detection(
+                label=detection.label,
+                score=detection.score,
+                rect=Rect(
+                    x=int(detection.rect[0]),
+                    y=int(detection.rect[1]),
+                    width=int(detection.rect[2] - detection.rect[0]),
+                    height=int(detection.rect[3] - detection.rect[1]),
+                ),
+            )
+            for detection in detections
+        ]
+        self.pub_detections.publish(detection_array)
 
         if self.with_mocap:
-            detections, vis_im = self.mocap_model.predict(detections, im, vis_im)
+            mocaps, visualization = self.mocap_model.predict(detections, image, visualization)
+            # to MocapArray msg
+            mocap_array = MocapArray(header=msg.header)
+            mocap_array.mocaps = [
+                Mocap(detection=detection_array.detections[i]) for i in range(len(detection_array.detections))
+            ]
 
-        vis_msg = self.bridge.cv2_to_imgmsg(vis_im.astype(np.uint8), encoding="rgb8")
+            for i in range(len(mocaps)):
+                skeleton = HumanSkeleton()
+                skeleton.bone_names = []
+                skeleton.bones = []
+                for j, (start, end) in enumerate(self.joint_connections):
+                    bone = Segment()
+                    bone.start_point = Point(
+                        x=mocaps[i].keypoints[start][0],
+                        y=mocaps[i].keypoints[start][1],
+                        z=mocaps[i].keypoints[start][2],
+                    )
+                    bone.end_point = Point(
+                        x=mocaps[i].keypoints[end][0],
+                        y=mocaps[i].keypoints[end][1],
+                        z=mocaps[i].keypoints[end][2],
+                    )
+                    skeleton.bones.append(bone)
+                    skeleton.bone_names.append(self.connection_names[j])
+
+                mocap_array.mocaps[i].pose = Pose(
+                    position=Point(
+                        x=mocaps[i].position[0],
+                        y=mocaps[i].position[1],
+                        z=mocaps[i].position[2],
+                    ),
+                    orientation=Quaternion(
+                        x=mocaps[i].orientation[0],
+                        y=mocaps[i].orientation[1],
+                        z=mocaps[i].orientation[2],
+                        w=mocaps[i].orientation[3],
+                    ),
+                )
+                mocap_array.mocaps[i].skeleton = skeleton
+            self.pub_mocaps.publish(mocap_array)
+
+        # Publish visualization
+        vis_msg = self.bridge.cv2_to_imgmsg(visualization.astype(np.uint8), encoding="bgr8")
         vis_msg.header = msg.header
         self.pub_debug_image.publish(vis_msg)
-        self.pub_detections.publish(detections)
 
-        if self.publish_tf:
-            for detection in detections.detections:
+        # Publish tf
+        if self.publish_tf and self.with_mocap:
+            for mocap in mocap_array.mocaps:
                 try:
                     # publish pose in the camera frame
                     self.tf_broadcaster.sendTransform(
                         (
-                            detection.pose.position.x,
-                            detection.pose.position.y,
-                            detection.pose.position.z,
+                            mocap.pose.position.x,
+                            mocap.pose.position.y,
+                            mocap.pose.position.z,
                         ),
                         (
-                            detection.pose.orientation.x,
-                            detection.pose.orientation.y,
-                            detection.pose.orientation.z,
-                            detection.pose.orientation.w,
+                            mocap.pose.orientation.x,
+                            mocap.pose.orientation.y,
+                            mocap.pose.orientation.z,
+                            mocap.pose.orientation.w,
                         ),
                         rospy.Time.now(),
-                        detection.label + "/" + self.keypoint_names[0],
+                        mocap.detection.label + "/" + self.keypoint_names[0],
                         msg.header.frame_id,
                     )
-                    for bone_name in detection.skeleton.bone_names:
+                    for bone_name in mocap.skeleton.bone_names:
                         parent_name = bone_name.split("->")[0]
                         child_name = bone_name.split("->")[1]
-                        bone_idx = detection.skeleton.bone_names.index(bone_name)
+                        bone_idx = mocap.skeleton.bone_names.index(bone_name)
 
-                        parent_point = detection.skeleton.bones[bone_idx].start_point
-                        child_point = detection.skeleton.bones[bone_idx].end_point
+                        parent_point = mocap.skeleton.bones[bone_idx].start_point
+                        child_point = mocap.skeleton.bones[bone_idx].end_point
                         parent_to_child = R.from_quat(
                             [
-                                detection.pose.orientation.x,
-                                detection.pose.orientation.y,
-                                detection.pose.orientation.z,
-                                detection.pose.orientation.w,
+                                mocap.pose.orientation.x,
+                                mocap.pose.orientation.y,
+                                mocap.pose.orientation.z,
+                                mocap.pose.orientation.w,
                             ]
                         ).inv().as_matrix() @ np.array(
                             [
@@ -168,8 +239,8 @@ class DetectionNode(object):
                             (parent_to_child[0], parent_to_child[1], parent_to_child[2]),
                             (0, 0, 0, 1),
                             rospy.Time.now(),
-                            detection.label + "/" + child_name,
-                            detection.label + "/" + parent_name,
+                            mocap.detection.label + "/" + child_name,
+                            mocap.detection.label + "/" + parent_name,
                         )
                 except (
                     tf.LookupException,

@@ -7,11 +7,11 @@ import tf
 from sensor_msgs.msg import Image, CameraInfo
 from geometry_msgs.msg import Pose, PoseStamped
 from image_geometry import PinholeCameraModel
-from mocap_ros.msg import MocapDetectionArray
+from mocap_ros.msg import MocapArray
 from cv_bridge import CvBridge, CvBridgeError
 import numpy as np
 
-from mocap_ros.utils import MANO_KEYPOINT_NAMES, axes_to_quaternion
+from motion_capture.utils.utils import MANO_KEYPOINT_NAMES, axes_to_quaternion
 
 
 class Hand3DNode(object):
@@ -25,7 +25,7 @@ class Hand3DNode(object):
         # Subscribe to the camera info and depth image topics
         self.info_sub = mf.Subscriber("~camera_info", CameraInfo, buff_size=2**24)
         self.depth_sub = mf.Subscriber("~input_depth", Image, buff_size=2**24)
-        self.hand_sub = mf.Subscriber("~input_detections", MocapDetectionArray, buff_size=2**24)
+        self.hand_sub = mf.Subscriber("~input_mocaps", MocapArray, buff_size=2**24)
         self.ts = mf.ApproximateTimeSynchronizer(
             [self.info_sub, self.depth_sub, self.hand_sub], queue_size=1, slop=self.slop
         )
@@ -43,11 +43,11 @@ class Hand3DNode(object):
         except CvBridgeError as e:
             rospy.logerr(e)
 
-        for detection in hand_data.detections:
+        for mocap in hand_data.mocaps:
             point_3d = (
-                detection.pose.position.x,
-                detection.pose.position.y,
-                detection.pose.position.z,
+                mocap.pose.position.x,
+                mocap.pose.position.y,
+                mocap.pose.position.z,
             )
             point_2d = camera_model.project3dToPixel(point_3d)
             # clip
@@ -70,25 +70,25 @@ class Hand3DNode(object):
                 pose_msg.position.x = x_cam * self.scale
                 pose_msg.position.y = y_cam * self.scale
                 pose_msg.position.z = z_cam * self.scale
-                pose_msg.orientation = detection.pose.orientation
+                pose_msg.orientation = mocap.pose.orientation
 
                 # Broadcast hand pose in the camera frame
                 self.tf_broadcaster.sendTransform(
                     (pose_msg.position.x, pose_msg.position.y, pose_msg.position.z),
                     (pose_msg.orientation.x, pose_msg.orientation.y, pose_msg.orientation.z, pose_msg.orientation.w),
                     rospy.Time.now(),
-                    "calibrated/" + detection.label + "_" + MANO_KEYPOINT_NAMES[0],
+                    "calibrated/" + mocap.detection.label + "_" + MANO_KEYPOINT_NAMES[0],
                     camera_frame,
                 )
 
                 # calibrate skeleton keypoints with wrist pose
-                for i, bone in enumerate(detection.skeleton.bones):
-                    bone.start_point.x += pose_msg.position.x - detection.pose.position.x
-                    bone.start_point.y += pose_msg.position.y - detection.pose.position.y
-                    bone.start_point.z += pose_msg.position.z - detection.pose.position.z
-                    bone.end_point.x += pose_msg.position.x - detection.pose.position.x
-                    bone.end_point.y += pose_msg.position.y - detection.pose.position.y
-                    bone.end_point.z += pose_msg.position.z - detection.pose.position.z
+                for i, bone in enumerate(mocap.skeleton.bones):
+                    bone.start_point.x += pose_msg.position.x - mocap.pose.position.x
+                    bone.start_point.y += pose_msg.position.y - mocap.pose.position.y
+                    bone.start_point.z += pose_msg.position.z - mocap.pose.position.z
+                    bone.end_point.x += pose_msg.position.x - mocap.pose.position.x
+                    bone.end_point.y += pose_msg.position.y - mocap.pose.position.y
+                    bone.end_point.z += pose_msg.position.z - mocap.pose.position.z
                     self.tf_broadcaster.sendTransform(
                         (bone.end_point.x, bone.end_point.y, bone.end_point.z),
                         (
@@ -98,7 +98,7 @@ class Hand3DNode(object):
                             pose_msg.orientation.w,
                         ),
                         rospy.Time.now(),
-                        "calibrated/" + detection.label + "_" + MANO_KEYPOINT_NAMES[i + 1],
+                        "calibrated/" + mocap.detection.label + "_" + MANO_KEYPOINT_NAMES[i + 1],
                         camera_frame,
                     )
 
@@ -108,9 +108,9 @@ class Hand3DNode(object):
                 # y-axis is direction from thumb to index finger when left hand and from index to thumb when right hand
                 # z-axis is perpendicular to x and y axis with right hand rule
                 gripper_pose_msg = PoseStamped()
-                bone_names = detection.skeleton.bone_names
-                thumb_tip_bone = detection.skeleton.bones[bone_names.index("thumb2->thumb3")]
-                index_tip_bone = detection.skeleton.bones[bone_names.index("index2->index3")]
+                bone_names = mocap.skeleton.bone_names
+                thumb_tip_bone = mocap.skeleton.bones[bone_names.index("thumb2->thumb3")]
+                index_tip_bone = mocap.skeleton.bones[bone_names.index("index2->index3")]
 
                 # position of gripper tool frame
                 gripper_pose_msg.header.stamp = rospy.Time.now()
@@ -137,7 +137,7 @@ class Hand3DNode(object):
                 norm_x = np.linalg.norm(x_axis)
                 x_axis = x_axis / norm_x
 
-                if detection.label == "right_hand":
+                if mocap.detection.label == "right_hand":
                     y_axis = np.array(
                         [
                             thumb_tip_bone.end_point.x - index_tip_bone.end_point.x,
@@ -182,7 +182,7 @@ class Hand3DNode(object):
                         gripper_pose_msg.pose.orientation.w,
                     ),
                     rospy.Time.now(),
-                    "calibrated/" + detection.label + "_gripper_tool_frame",
+                    "calibrated/" + mocap.detection.label + "_gripper_tool_frame",
                     camera_frame,
                 )
 
