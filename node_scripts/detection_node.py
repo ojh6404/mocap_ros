@@ -65,7 +65,7 @@ class DetectionNode(object):
         # Mocap
         self.with_mocap = rospy.get_param("~with_mocap", True)
         if self.with_mocap:
-            self.mocap = rospy.get_param("~mocap_model", "hamer")  # frankmocap_hand, hamer, 4d-human
+            self.mocap = rospy.get_param("~mocap_model", "wilor")  # frankmocap_hand, hamer, wilor, 4d-human
             if self.mocap == "frankmocap_hand":
                 self.mocap_config = {
                     "render_type": rospy.get_param("~render_type", "opengl"),  # pytorch3d, opendr, opengl
@@ -77,6 +77,17 @@ class DetectionNode(object):
                 self.connection_names = MANO_CONNECTION_NAMES
                 self.joint_connections = MANO_JOINTS_CONNECTION
             elif self.mocap == "hamer":
+                self.mocap_config = {
+                    "focal_length": self.camera_model.fx(),
+                    "rescale_factor": rospy.get_param("~rescale_factor", 2.0),
+                    "img_size": self.img_size,
+                    "visualize": rospy.get_param("~visualize", True),
+                    "device": self.device,
+                }
+                self.keypoint_names = MANO_KEYPOINT_NAMES
+                self.connection_names = MANO_CONNECTION_NAMES
+                self.joint_connections = MANO_JOINTS_CONNECTION
+            elif self.mocap == "wilor":
                 self.mocap_config = {
                     "focal_length": self.camera_model.fx(),
                     "rescale_factor": rospy.get_param("~rescale_factor", 2.0),
