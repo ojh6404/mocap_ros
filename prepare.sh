@@ -31,6 +31,12 @@ rm -rf hamer_demo_data.tar.gz
 rm -rf _DATA/hamer_demo_data.tar.gz
 rm -rf _DATA/vitpose_ckpts
 
+# install wilor
+cd ../WiLoR && pip install -e .
+wget https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/detector.pt -P ./pretrained_models/
+wget https://huggingface.co/spaces/rolpotamias/WiLoR/resolve/main/pretrained_models/wilor_final.ckpt -P ./pretrained_models/
+gdown https://drive.google.com/uc\?id\=1sgZ9dF0FH5z9wSXm9dNXuSyN3ZaTX28U -O mano_data/MANO_RIGHT.pkl -c
+
 # install 4D-Humans
 cd ../4D-Humans && pip install -e .[all]
 mkdir data && gdown https://drive.google.com/uc\?id\=1LBRm4pZzB7gp5aSPr_M-kTI2mrKMi483 -O data/basicModel_neutral_lbs_10_207_0_v1.0.0.pkl -c
