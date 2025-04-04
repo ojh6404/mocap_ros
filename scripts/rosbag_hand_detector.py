@@ -67,15 +67,7 @@ def main(args):
 
     # Mocap config
     mocap = args.mocap_model
-    if mocap == "frankmocap_hand":
-        mocap_config = {
-            "render_type": "opengl",  # pytorch3d, opendr, opengl
-            "img_size": img_size,
-            "visualize": True,
-            "device": device,
-        }
-        keypoint_names = MANO_KEYPOINT_NAMES
-    elif mocap == "hamer":
+    if mocap == "hamer" or mocap == "wilor":
         mocap_config = {
             "focal_length": focal_length,
             "rescale_factor": 2.0,
@@ -156,7 +148,7 @@ def main(args):
             outbag.write("/mocap/detection_image/compressed", vis_im_msg, msg.header.stamp)
 
             # Process Mocap
-            mocaps, vis_im = mocap_model.predict(detections, image, vis_im)
+            mocaps, vis_im = mocap_model.predict(img=image, detections=detections, vis_img=vis_im)
             # to MocapArray msg
             mocap_array = MocapArray(header=msg.header)
             mocap_array.mocaps = [
@@ -182,6 +174,7 @@ def main(args):
                     skeleton.bones.append(bone)
                     skeleton.bone_names.append(MANO_CONNECTION_NAMES[j])
 
+                quat = R.from_matrix(mocaps[i].orientation).as_quat(scalar_first=False)
                 mocap_array.mocaps[i].pose = Pose(
                     position=Point(
                         x=mocaps[i].position[0],
@@ -189,10 +182,10 @@ def main(args):
                         z=mocaps[i].position[2],
                     ),
                     orientation=Quaternion(
-                        x=mocaps[i].orientation[0],
-                        y=mocaps[i].orientation[1],
-                        z=mocaps[i].orientation[2],
-                        w=mocaps[i].orientation[3],
+                        x=quat[0],
+                        y=quat[1],
+                        z=quat[2],
+                        w=quat[3],
                     ),
                 )
                 mocap_array.mocaps[i].skeleton = skeleton
