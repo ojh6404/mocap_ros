@@ -9,10 +9,9 @@
   <arg name="threshold" default="0.9" />
   <arg name="with_mocap" default="true" />
   <arg name="detector_model" default="hand_object_detector" />  <!-- hand_object_detector, mediapipe_hand, ... -->
-  <arg name="mocap_model" default="hamer" />  <!-- frankmocap_hand, hamer, 4d-human -->
+  <arg name="mocap_model" default="wilor" />  <!-- hamer, wilor, 4d-human -->
   <arg name="visualize" default="true" /> <!-- visualization. set false if you want to speed up -->
-  <arg name="render_type" default="opengl" />  <!-- for frankmocap, opengl or pytorch3d -->
-  <arg name="rescale_factor" default="2.0" />  <!-- for hamer -->
+  <arg name="rescale_factor" default="2.0" />  <!-- for hamer, wilor -->
   <arg name="track_3d" default="false" />
   <arg name="depth_scale" default="0.001" /> <!-- scale for depth format, depends on camera device -->
   <arg name="slop" default="0.3" />
@@ -43,7 +42,6 @@
         detector_model: $(arg detector_model)
         mocap_model: $(arg mocap_model)
         visualize: $(arg visualize)
-        render_type: $(arg render_type)
         rescale_factor: $(arg rescale_factor)
         margin: $(arg margin)
     </rosparam>
