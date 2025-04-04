@@ -1,6 +1,6 @@
 # mocap_ros 
 
-ROS1 wrapper package for motion capture with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git), [frankmocap](https://github.com/facebookresearch/frankmocap.git), [HaMeR](https://github.com/geopavlakos/hamer.git), [WiLoR](https://github.com/rolpotamias/WiLoR.git) and [4D-Humans](https://github.com/shubham-goel/4D-Humans.git).
+ROS1 wrapper package for motion capture with [hand_object_detector](https://github.com/ddshan/hand_object_detector.git), [HaMeR](https://github.com/geopavlakos/hamer.git), [WiLoR](https://github.com/rolpotamias/WiLoR.git) and [4D-Humans](https://github.com/shubham-goel/4D-Humans.git).
 
 ![Alt text](asset/mocap_example.gif)
 
